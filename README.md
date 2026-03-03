@@ -105,6 +105,24 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (八)
+- 修正 cocotb 模擬測試並達成全部 36 項測試通過 (6 模組 × 6 測試):
+  - **UART RTL 修正**:
+    - 修正 `data_bits_num` 位寬溢位 (3位元→4位元)，避免 8-bit 模式下計算錯誤
+    - 將 `wb_dat_o` 從組合邏輯改為暫存器輸出，修正 ACK 時讀取資料不穩定的問題
+    - 改用延遲一拍的 RX FIFO 寫入，確保 shift_reg 資料穩定後再存入 FIFO
+    - 修正 RX FIFO 讀取指標推進時機，從 pre-ACK 改為 ACK 週期
+  - **Timer RTL 修正**:
+    - 消除 `reg_int_stat` 多驅動源競爭 (從3個always塊改為單一always塊統一管理)
+    - 使用事件旗標 (`ch0_ovf_event` 等) 在計數器邏輯與 WB 介面之間傳遞中斷事件
+    - 將 `wb_dat_o` 從組合邏輯改為暫存器輸出
+  - **測試基礎設施修正**:
+    - `conftest.py`: 修正 `reset_dut()` 在 reset 前初始化所有 Wishbone 輸入信號，防止 X 傳播
+    - `test_uart.py`: RX/迴路測試使用較大鮑率除數 (baud_div=16)，確保同步器延遲不影響取樣
+    - `Makefile`: 每個測試目標前自動清除 `sim_build`，避免跨模組快取衝突
+    - 修正 cocotb 2.0 棄用警告 (`units` → `unit`, `task.kill()` → `task.cancel()`)
+  - **測試結果**: UART 6/6, GPIO 6/6, SPI 6/6, Timer 6/6, I2C 6/6, PWM 6/6 全部通過
+
 ### 2026-03-03 (七)
 - 修正 9 個周邊控制器 RTL 模組的重置方式：將非同步重置 (`always @(posedge wb_clk_i or posedge wb_rst_i)`) 改為同步重置 (`always @(posedge wb_clk_i)`)，以解決 Icarus Verilog cocotb 模擬時 reset 信號初始 X 導致的 X 傳播問題：
   - `formosa_gpio.v` (3 處), `formosa_spi.v` (6 處), `formosa_i2c.v` (5 處)

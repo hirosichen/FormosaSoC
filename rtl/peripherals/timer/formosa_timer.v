@@ -179,20 +179,32 @@ module formosa_timer (
         end
     end
 
+    // 中斷事件旗標（由計數器邏輯設定，由 WB 寫入邏輯統一處理）
+    reg ch0_ovf_event, ch0_cmp_event, ch0_cap_event;
+    reg ch1_ovf_event, ch1_cmp_event, ch1_cap_event;
+
     // 通道 0 計數器與事件邏輯
     always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
-            ch0_count   <= 32'h0;
-            ch0_capture <= 32'h0;
-            ch0_stopped <= 1'b0;
+            ch0_count     <= 32'h0;
+            ch0_capture   <= 32'h0;
+            ch0_stopped   <= 1'b0;
+            ch0_ovf_event <= 1'b0;
+            ch0_cmp_event <= 1'b0;
+            ch0_cap_event <= 1'b0;
         end else begin
+            // 預設清除單拍事件旗標
+            ch0_ovf_event <= 1'b0;
+            ch0_cmp_event <= 1'b0;
+            ch0_cap_event <= 1'b0;
+
             // ---- 計數器邏輯 ----
             if (ch0_enable && !ch0_stopped && ch0_prescale_tick) begin
                 if (!ch0_dir) begin
                     // 向上計數
                     if (ch0_count == 32'hFFFFFFFF) begin
                         // 溢出
-                        reg_int_stat[0] <= 1'b1;
+                        ch0_ovf_event <= 1'b1;
                         if (ch0_auto_reload)
                             ch0_count <= ch0_reload;
                         else
@@ -206,7 +218,7 @@ module formosa_timer (
                     // 向下計數
                     if (ch0_count == 32'h0) begin
                         // 下溢
-                        reg_int_stat[0] <= 1'b1;
+                        ch0_ovf_event <= 1'b1;
                         if (ch0_auto_reload)
                             ch0_count <= ch0_reload;
                         else
@@ -220,7 +232,7 @@ module formosa_timer (
 
                 // 比較匹配偵測
                 if (ch0_count == ch0_compare)
-                    reg_int_stat[1] <= 1'b1;
+                    ch0_cmp_event <= 1'b1;
             end
 
             // ---- 捕捉邏輯 ----
@@ -229,26 +241,25 @@ module formosa_timer (
                     2'b00: begin // 上升邊緣捕捉
                         if (cap_rising[0]) begin
                             ch0_capture <= ch0_count;
-                            reg_int_stat[2] <= 1'b1;
+                            ch0_cap_event <= 1'b1;
                         end
                     end
                     2'b01: begin // 下降邊緣捕捉
                         if (cap_falling[0]) begin
                             ch0_capture <= ch0_count;
-                            reg_int_stat[2] <= 1'b1;
+                            ch0_cap_event <= 1'b1;
                         end
                     end
                     2'b10: begin // 雙邊緣捕捉
                         if (cap_rising[0] || cap_falling[0]) begin
                             ch0_capture <= ch0_count;
-                            reg_int_stat[2] <= 1'b1;
+                            ch0_cap_event <= 1'b1;
                         end
                     end
                     default: ;
                 endcase
             end
 
-            // ---- 軟體寫入計數值 (在 Wishbone 寫入邏輯中處理) ----
             // ---- 重置 stopped 旗標 (當重新致能時) ----
             if (!ch0_enable)
                 ch0_stopped <= 1'b0;
@@ -283,14 +294,21 @@ module formosa_timer (
 
     always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
-            ch1_count   <= 32'h0;
-            ch1_capture <= 32'h0;
-            ch1_stopped <= 1'b0;
+            ch1_count     <= 32'h0;
+            ch1_capture   <= 32'h0;
+            ch1_stopped   <= 1'b0;
+            ch1_ovf_event <= 1'b0;
+            ch1_cmp_event <= 1'b0;
+            ch1_cap_event <= 1'b0;
         end else begin
+            ch1_ovf_event <= 1'b0;
+            ch1_cmp_event <= 1'b0;
+            ch1_cap_event <= 1'b0;
+
             if (ch1_enable && !ch1_stopped && ch1_prescale_tick) begin
                 if (!ch1_dir) begin
                     if (ch1_count == 32'hFFFFFFFF) begin
-                        reg_int_stat[4] <= 1'b1;
+                        ch1_ovf_event <= 1'b1;
                         if (ch1_auto_reload)
                             ch1_count <= ch1_reload;
                         else
@@ -302,7 +320,7 @@ module formosa_timer (
                     end
                 end else begin
                     if (ch1_count == 32'h0) begin
-                        reg_int_stat[4] <= 1'b1;
+                        ch1_ovf_event <= 1'b1;
                         if (ch1_auto_reload)
                             ch1_count <= ch1_reload;
                         else
@@ -315,7 +333,7 @@ module formosa_timer (
                 end
 
                 if (ch1_count == ch1_compare)
-                    reg_int_stat[5] <= 1'b1;
+                    ch1_cmp_event <= 1'b1;
             end
 
             // 捕捉邏輯
@@ -324,19 +342,19 @@ module formosa_timer (
                     2'b00: begin
                         if (cap_rising[1]) begin
                             ch1_capture <= ch1_count;
-                            reg_int_stat[6] <= 1'b1;
+                            ch1_cap_event <= 1'b1;
                         end
                     end
                     2'b01: begin
                         if (cap_falling[1]) begin
                             ch1_capture <= ch1_count;
-                            reg_int_stat[6] <= 1'b1;
+                            ch1_cap_event <= 1'b1;
                         end
                     end
                     2'b10: begin
                         if (cap_rising[1] || cap_falling[1]) begin
                             ch1_capture <= ch1_count;
-                            reg_int_stat[6] <= 1'b1;
+                            ch1_cap_event <= 1'b1;
                         end
                     end
                     default: ;
@@ -363,12 +381,13 @@ module formosa_timer (
     end
 
     // ================================================================
-    // 暫存器寫入邏輯
+    // 暫存器寫入邏輯與中斷狀態統一管理
     // ================================================================
     always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_global_ctrl <= 32'h0;
             reg_int_en      <= 8'h0;
+            reg_int_stat    <= 8'h0;
             ch0_ctrl        <= 32'h0;
             ch0_reload      <= 32'h0;
             ch0_compare     <= 32'h0;
@@ -378,6 +397,14 @@ module formosa_timer (
             ch1_compare     <= 32'h0;
             ch1_prescale    <= 16'h0;
         end else begin
+            // 從計數器事件旗標更新中斷狀態（鎖存）
+            if (ch0_ovf_event) reg_int_stat[0] <= 1'b1;
+            if (ch0_cmp_event) reg_int_stat[1] <= 1'b1;
+            if (ch0_cap_event) reg_int_stat[2] <= 1'b1;
+            if (ch1_ovf_event) reg_int_stat[4] <= 1'b1;
+            if (ch1_cmp_event) reg_int_stat[5] <= 1'b1;
+            if (ch1_cap_event) reg_int_stat[6] <= 1'b1;
+
             if (wb_valid & wb_we_i & ~wb_ack_o) begin
                 case (reg_addr_sel)
                     ADDR_GLOBAL_CTRL: reg_global_ctrl <= wb_dat_i;
@@ -405,30 +432,34 @@ module formosa_timer (
     end
 
     // ================================================================
-    // 暫存器讀取邏輯
+    // 暫存器讀取邏輯（暫存器輸出，確保 ACK 時資料穩定）
     // ================================================================
-    always @(*) begin
-        case (reg_addr_sel)
-            ADDR_GLOBAL_CTRL: wb_dat_o = reg_global_ctrl;
-            ADDR_INT_EN:      wb_dat_o = {24'h0, reg_int_en};
-            ADDR_INT_STAT:    wb_dat_o = {24'h0, reg_int_stat};
+    always @(posedge wb_clk_i) begin
+        if (wb_rst_i) begin
+            wb_dat_o <= 32'h0;
+        end else if (wb_valid & ~wb_ack_o) begin
+            case (reg_addr_sel)
+                ADDR_GLOBAL_CTRL: wb_dat_o <= reg_global_ctrl;
+                ADDR_INT_EN:      wb_dat_o <= {24'h0, reg_int_en};
+                ADDR_INT_STAT:    wb_dat_o <= {24'h0, reg_int_stat};
 
-            ADDR_CH0_CTRL:    wb_dat_o = ch0_ctrl;
-            ADDR_CH0_COUNT:   wb_dat_o = ch0_count;
-            ADDR_CH0_RELOAD:  wb_dat_o = ch0_reload;
-            ADDR_CH0_COMPARE: wb_dat_o = ch0_compare;
-            ADDR_CH0_CAPTURE: wb_dat_o = ch0_capture;
-            ADDR_CH0_PRESCALE:wb_dat_o = {16'h0, ch0_prescale};
+                ADDR_CH0_CTRL:    wb_dat_o <= ch0_ctrl;
+                ADDR_CH0_COUNT:   wb_dat_o <= ch0_count;
+                ADDR_CH0_RELOAD:  wb_dat_o <= ch0_reload;
+                ADDR_CH0_COMPARE: wb_dat_o <= ch0_compare;
+                ADDR_CH0_CAPTURE: wb_dat_o <= ch0_capture;
+                ADDR_CH0_PRESCALE:wb_dat_o <= {16'h0, ch0_prescale};
 
-            ADDR_CH1_CTRL:    wb_dat_o = ch1_ctrl;
-            ADDR_CH1_COUNT:   wb_dat_o = ch1_count;
-            ADDR_CH1_RELOAD:  wb_dat_o = ch1_reload;
-            ADDR_CH1_COMPARE: wb_dat_o = ch1_compare;
-            ADDR_CH1_CAPTURE: wb_dat_o = ch1_capture;
-            ADDR_CH1_PRESCALE:wb_dat_o = {16'h0, ch1_prescale};
+                ADDR_CH1_CTRL:    wb_dat_o <= ch1_ctrl;
+                ADDR_CH1_COUNT:   wb_dat_o <= ch1_count;
+                ADDR_CH1_RELOAD:  wb_dat_o <= ch1_reload;
+                ADDR_CH1_COMPARE: wb_dat_o <= ch1_compare;
+                ADDR_CH1_CAPTURE: wb_dat_o <= ch1_capture;
+                ADDR_CH1_PRESCALE:wb_dat_o <= {16'h0, ch1_prescale};
 
-            default:          wb_dat_o = 32'h0;
-        endcase
+                default:          wb_dat_o <= 32'h0;
+            endcase
+        end
     end
 
 endmodule

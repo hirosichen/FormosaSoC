@@ -67,19 +67,19 @@ async def uart_send_byte(dut, data, baud_div):
 
     # 起始位元 (低準位)
     dut.uart_rxd.value = 0
-    await Timer(bit_time_ns, units="ns")
+    await Timer(bit_time_ns, unit="ns")
 
     # 資料位元 (LSB 先傳送)
     for i in range(8):
         dut.uart_rxd.value = (data >> i) & 1
-        await Timer(bit_time_ns, units="ns")
+        await Timer(bit_time_ns, unit="ns")
 
     # 停止位元 (高準位)
     dut.uart_rxd.value = 1
-    await Timer(bit_time_ns, units="ns")
+    await Timer(bit_time_ns, unit="ns")
 
     # 額外等待確保 DUT 處理完畢
-    await Timer(bit_time_ns, units="ns")
+    await Timer(bit_time_ns, unit="ns")
 
 
 async def uart_receive_byte(dut, baud_div):
@@ -99,21 +99,29 @@ async def uart_receive_byte(dut, baud_div):
     bit_time_ns = (baud_div + 1) * clk_period_ns
 
     # 等待起始位元 (uart_txd 從高到低)
-    while dut.uart_txd.value == 1:
+    timeout_cycles = 10000
+    for _ in range(timeout_cycles):
         await RisingEdge(dut.wb_clk_i)
+        try:
+            if int(dut.uart_txd.value) == 0:
+                break
+        except ValueError:
+            continue  # X or Z value
+    else:
+        raise TimeoutError("等待 UART TX 起始位元逾時")
 
     # 等待半個位元時間，移動到位元中間取樣
-    await Timer(bit_time_ns // 2, units="ns")
+    await Timer(bit_time_ns // 2, unit="ns")
 
     # 跳過起始位元的剩餘時間
-    await Timer(bit_time_ns, units="ns")
+    await Timer(bit_time_ns, unit="ns")
 
     # 讀取 8 個資料位元 (LSB 先收)
     data = 0
     for i in range(8):
         bit_val = int(dut.uart_txd.value)
         data |= (bit_val << i)
-        await Timer(bit_time_ns, units="ns")
+        await Timer(bit_time_ns, unit="ns")
 
     # 驗證停止位元
     stop_bit = int(dut.uart_txd.value)
@@ -171,8 +179,9 @@ async def test_uart_rx_basic(dut):
 
     wb = WishboneMaster(dut, "wb", dut.wb_clk_i)
 
-    # 設定鮑率與控制
-    baud_div = 4
+    # 使用較大的鮑率除數，確保 3 級同步器延遲不會影響取樣正確性
+    # baud_div=4 只有 5 個時脈/位元，同步器佔 2-3 個時脈，取樣會偏移
+    baud_div = 16
     await wb.write(UART_BAUD_DIV, baud_div)
     await wb.write(UART_CONTROL, CTRL_RX_EN | CTRL_8BIT)
 
@@ -183,17 +192,25 @@ async def test_uart_rx_basic(dut):
     test_data = 0x55
     await uart_send_byte(dut, test_data, baud_div)
 
-    # 等待接收完成
-    await wait_clocks(dut, 20)
+    # 等待接收完成（需足夠時間讓 RX 狀態機完成並寫入 FIFO）
+    await wait_clocks(dut, 100)
 
-    # 檢查 RX FIFO 是否有資料（STATUS[2] = RX_EMPTY 應為 0）
-    status = await wb.read(UART_STATUS)
-    rx_empty = (status & STATUS_RX_EMPTY) != 0
+    # 輪詢等待 RX FIFO 非空
+    for _ in range(200):
+        status = await wb.read(UART_STATUS)
+        rx_empty = (status & STATUS_RX_EMPTY) != 0
+        if not rx_empty:
+            break
+        await wait_clocks(dut, 5)
+
     dut._log.info(f"狀態暫存器: 0x{status:08X}, RX_EMPTY={rx_empty}")
+    assert not rx_empty, "RX FIFO 應有資料但為空"
 
     # 讀取接收到的資料
-    rx_data = await wb.read(UART_RX_DATA)
-    rx_data &= 0xFF  # 取低 8 位元
+    rx_data_raw = await wb.read(UART_RX_DATA)
+    rx_data = rx_data_raw & 0xFF  # 取低 8 位元
+    dut._log.info(f"RX_DATA raw: 0x{rx_data_raw:08X}, masked: 0x{rx_data:02X}")
+
     assert rx_data == test_data, \
         f"RX 資料錯誤: 期望 0x{test_data:02X}, 實際 0x{rx_data:02X}"
 
@@ -320,7 +337,8 @@ async def test_uart_loopback(dut):
 
     wb = WishboneMaster(dut, "wb", dut.wb_clk_i)
 
-    baud_div = 4
+    # 使用較大的鮑率除數，避免同步器延遲影響取樣
+    baud_div = 16
     await wb.write(UART_BAUD_DIV, baud_div)
     # 同時致能 TX 和 RX
     await wb.write(UART_CONTROL, CTRL_TX_EN | CTRL_RX_EN | CTRL_8BIT)
@@ -342,18 +360,25 @@ async def test_uart_loopback(dut):
     # 等待傳送完成（起始位元 + 8 資料位元 + 停止位元 = 10 位元時間）
     clk_period_ns = 20
     bit_time_ns = (baud_div + 1) * clk_period_ns
-    total_time = bit_time_ns * 12  # 多等一些餘裕
-    await Timer(total_time, units="ns")
+    total_time = bit_time_ns * 15  # 多等一些餘裕
+    await Timer(total_time, unit="ns")
 
-    # 額外等待讓 RX 處理完畢
-    await wait_clocks(dut, 50)
+    # 額外等待讓 RX 處理完畢（需要經過 3 級同步器 + RX 狀態機）
+    await wait_clocks(dut, 200)
+
+    # 輪詢等待 RX FIFO 非空
+    for _ in range(200):
+        status = await wb.read(UART_STATUS)
+        if (status & 0x04) == 0:  # RX_EMPTY = 0
+            break
+        await wait_clocks(dut, 5)
 
     # 讀取接收到的資料
     rx_data = await wb.read(UART_RX_DATA)
     rx_data &= 0xFF
 
     # 停止迴路驅動
-    loopback_task.kill()
+    loopback_task.cancel()
 
     dut._log.info(f"迴路測試: 傳送 0x{test_data:02X}, 接收 0x{rx_data:02X}")
     assert rx_data == test_data, \

@@ -200,20 +200,30 @@ async def setup_dut_clock(dut, period_ns=20):
         dut       - cocotb DUT 物件
         period_ns - 時脈週期 (奈秒，預設 20ns = 50MHz)
     """
-    clock = Clock(dut.wb_clk_i, period_ns, units="ns")
+    clock = Clock(dut.wb_clk_i, period_ns, unit="ns")
     cocotb.start_soon(clock.start())
 
 
 async def reset_dut(dut, duration_ns=200):
     """
-    對 DUT 執行同步重置序列
+    對 DUT 執行重置序列，並初始化所有 Wishbone 輸入信號。
 
     參數:
         dut         - cocotb DUT 物件
         duration_ns - 重置持續時間 (奈秒)
+
+    注意：必須在 reset 前將所有輸入初始化為確定值，
+    否則 Icarus Verilog 中 X 會傳播到所有內部暫存器。
     """
+    # 初始化所有 Wishbone 輸入，避免 X 傳播
+    dut.wb_adr_i.value = 0
+    dut.wb_dat_i.value = 0
+    dut.wb_we_i.value = 0
+    dut.wb_sel_i.value = 0
+    dut.wb_stb_i.value = 0
+    dut.wb_cyc_i.value = 0
     dut.wb_rst_i.value = 1
-    await Timer(duration_ns, units="ns")
+    await Timer(duration_ns, unit="ns")
     await RisingEdge(dut.wb_clk_i)
     dut.wb_rst_i.value = 0
     await RisingEdge(dut.wb_clk_i)

@@ -134,7 +134,7 @@ module formosa_uart (
 
     assign baud_tick = (baud_counter == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             baud_counter <= 16'h0;
         end else begin
@@ -166,7 +166,7 @@ module formosa_uart (
     // TX 使用獨立的鮑率計數器
     assign tx_baud_tick = (tx_baud_cnt == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             tx_baud_cnt <= 16'h0;
         end else begin
@@ -179,11 +179,11 @@ module formosa_uart (
         end
     end
 
-    // 資料位元數解碼
-    wire [2:0] data_bits_num;
-    assign data_bits_num = reg_control[3:2] + 3'd5; // 00->5, 01->6, 10->7, 11->8
+    // 資料位元數解碼（需 4 位元寬度以容納值 5~8）
+    wire [3:0] data_bits_num;
+    assign data_bits_num = {2'b0, reg_control[3:2]} + 4'd5; // 00->5, 01->6, 10->7, 11->8
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             tx_state     <= TX_IDLE;
             tx_shift_reg <= 8'h0;
@@ -259,7 +259,7 @@ module formosa_uart (
 
     // TX FIFO 讀取指標更新：當傳送器從 FIFO 取出資料時推進
     reg tx_fifo_rd_en;
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             tx_fifo_rd_en <= 1'b0;
         else
@@ -285,7 +285,7 @@ module formosa_uart (
     // RX 輸入同步器 (防止亞穩態)
     reg        rxd_sync1, rxd_sync2, rxd_prev;
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             rxd_sync1 <= 1'b1;
             rxd_sync2 <= 1'b1;
@@ -300,7 +300,7 @@ module formosa_uart (
     // RX 下降邊緣偵測（起始位元偵測）
     wire rxd_falling = rxd_prev & ~rxd_sync2;
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             rx_state     <= RX_IDLE;
             rx_shift_reg <= 8'h0;
@@ -395,16 +395,30 @@ module formosa_uart (
 
     // ================================================================
     // RX FIFO 寫入邏輯
-    // 當接收器完成一筆資料接收且 FIFO 未滿時，寫入 FIFO
+    // 使用延遲一拍的方式確保 shift_reg 資料穩定後再寫入 FIFO
     // ================================================================
-    wire rx_data_ready = (rx_state == RX_STOP) && (rx_baud_cnt == 16'h0) &&
-                         (rxd_sync2 == 1'b1) && !rx_fifo_full;
+    reg        rx_done_d;      // RX 完成延遲一拍
+    reg [7:0]  rx_data_latch;  // 鎖存接收資料
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    wire rx_data_valid = (rx_state == RX_STOP) && (rx_baud_cnt == 16'h0) &&
+                         (rxd_sync2 == 1'b1);
+
+    always @(posedge wb_clk_i) begin
+        if (wb_rst_i) begin
+            rx_done_d    <= 1'b0;
+            rx_data_latch <= 8'h0;
+        end else begin
+            rx_done_d <= rx_data_valid;
+            if (rx_data_valid)
+                rx_data_latch <= rx_shift_reg >> (8 - data_bits_num);
+        end
+    end
+
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             rx_wr_ptr <= 0;
-        end else if (rx_data_ready) begin
-            rx_fifo[rx_wr_ptr[FIFO_AW-1:0]] <= rx_shift_reg >> (8 - data_bits_num);
+        end else if (rx_done_d && !rx_fifo_full) begin
+            rx_fifo[rx_wr_ptr[FIFO_AW-1:0]] <= rx_data_latch;
             rx_wr_ptr <= rx_wr_ptr + 1'b1;
         end
     end
@@ -441,7 +455,7 @@ module formosa_uart (
     wire [2:0] reg_addr = wb_adr_i[4:2];
 
     // Wishbone ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -451,7 +465,7 @@ module formosa_uart (
     // ================================================================
     // 暫存器寫入邏輯與 FIFO 控制
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_control  <= 32'h0;
             reg_baud_div <= 16'd433;  // 預設 115200 baud @ 50MHz
@@ -499,7 +513,8 @@ module formosa_uart (
             end
 
             // Wishbone 讀取 RX_DATA 時自動彈出 FIFO
-            if (wb_valid & ~wb_we_i & ~wb_ack_o && reg_addr == ADDR_RX_DATA) begin
+            // 在 ACK 週期推進讀取指標（wb_dat_o 已在上一拍被鎖存為暫存器輸出）
+            if (wb_ack_o & ~wb_we_i && reg_addr == ADDR_RX_DATA) begin
                 if (!rx_fifo_empty)
                     rx_rd_ptr <= rx_rd_ptr + 1'b1;
             end
@@ -507,20 +522,24 @@ module formosa_uart (
     end
 
     // ================================================================
-    // 暫存器讀取邏輯
+    // 暫存器讀取邏輯（暫存器輸出，確保 ACK 時資料穩定）
     // ================================================================
-    always @(*) begin
-        case (reg_addr)
-            ADDR_TX_DATA:  wb_dat_o = 32'h0; // TX 為唯寫暫存器
-            ADDR_RX_DATA:  wb_dat_o = rx_fifo_empty ? 32'h0 :
-                                      {24'h0, rx_fifo[rx_rd_ptr[FIFO_AW-1:0]]};
-            ADDR_STATUS:   wb_dat_o = status_reg;
-            ADDR_CONTROL:  wb_dat_o = reg_control;
-            ADDR_BAUD_DIV: wb_dat_o = {16'h0, reg_baud_div};
-            ADDR_INT_EN:   wb_dat_o = {28'h0, reg_int_en};
-            ADDR_INT_STAT: wb_dat_o = {28'h0, reg_int_stat};
-            default:       wb_dat_o = 32'h0;
-        endcase
+    always @(posedge wb_clk_i) begin
+        if (wb_rst_i) begin
+            wb_dat_o <= 32'h0;
+        end else if (wb_valid & ~wb_ack_o) begin
+            case (reg_addr)
+                ADDR_TX_DATA:  wb_dat_o <= 32'h0;
+                ADDR_RX_DATA:  wb_dat_o <= rx_fifo_empty ? 32'h0 :
+                                           {24'h0, rx_fifo[rx_rd_ptr[FIFO_AW-1:0]]};
+                ADDR_STATUS:   wb_dat_o <= status_reg;
+                ADDR_CONTROL:  wb_dat_o <= reg_control;
+                ADDR_BAUD_DIV: wb_dat_o <= {16'h0, reg_baud_div};
+                ADDR_INT_EN:   wb_dat_o <= {28'h0, reg_int_en};
+                ADDR_INT_STAT: wb_dat_o <= {28'h0, reg_int_stat};
+                default:       wb_dat_o <= 32'h0;
+            endcase
+        end
     end
 
 endmodule

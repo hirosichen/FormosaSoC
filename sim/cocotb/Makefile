@@ -42,9 +42,8 @@ export PYTHONPATH := $(shell pwd):$(PYTHONPATH)
 # ================================================================
 # Verilator 額外編譯選項（如使用 Verilator）
 # ================================================================
-EXTRA_ARGS += --trace
-
 ifeq ($(SIM),verilator)
+    EXTRA_ARGS += --trace
     EXTRA_ARGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNOPTFLAT
     EXTRA_ARGS += --timing
 endif
@@ -80,6 +79,7 @@ help:
 # ================================================================
 .PHONY: test_uart
 test_uart:
+	rm -rf sim_build __pycache__
 	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		VERILOG_SOURCES=$(UART_DIR)/formosa_uart.v \
 		TOPLEVEL=formosa_uart \
@@ -92,6 +92,7 @@ test_uart:
 # ================================================================
 .PHONY: test_gpio
 test_gpio:
+	rm -rf sim_build __pycache__
 	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		VERILOG_SOURCES=$(GPIO_DIR)/formosa_gpio.v \
 		TOPLEVEL=formosa_gpio \
@@ -104,6 +105,7 @@ test_gpio:
 # ================================================================
 .PHONY: test_spi
 test_spi:
+	rm -rf sim_build __pycache__
 	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		VERILOG_SOURCES=$(SPI_DIR)/formosa_spi.v \
 		TOPLEVEL=formosa_spi \
@@ -116,6 +118,7 @@ test_spi:
 # ================================================================
 .PHONY: test_timer
 test_timer:
+	rm -rf sim_build __pycache__
 	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		VERILOG_SOURCES=$(TIMER_DIR)/formosa_timer.v \
 		TOPLEVEL=formosa_timer \
@@ -128,6 +131,7 @@ test_timer:
 # ================================================================
 .PHONY: test_i2c
 test_i2c:
+	rm -rf sim_build __pycache__
 	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		VERILOG_SOURCES=$(I2C_DIR)/formosa_i2c.v \
 		TOPLEVEL=formosa_i2c \
@@ -140,6 +144,7 @@ test_i2c:
 # ================================================================
 .PHONY: test_pwm
 test_pwm:
+	rm -rf sim_build __pycache__
 	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		VERILOG_SOURCES=$(PWM_DIR)/formosa_pwm.v \
 		TOPLEVEL=formosa_pwm \
