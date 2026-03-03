@@ -105,6 +105,19 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (九)
+- 補齊 WDT、IRQ Controller、DMA、ADC Interface 四個模組的 cocotb 測試，達成全部 60 項測試通過 (10 模組 × 6 測試):
+  - **新增測試檔案**:
+    - `sim/cocotb/test_wdt.py` - WDT 看門狗計時器測試 (基本倒數/餵狗/視窗模式/金鑰鎖定/中斷/暫存器讀寫)
+    - `sim/cocotb/test_irq.py` - IRQ 中斷控制器測試 (基本觸發/致能禁能/優先順序仲裁/ACK清除/邊緣觸發/暫存器讀寫)
+    - `sim/cocotb/test_dma.py` - DMA 控制器測試 (暫存器讀寫/通道配置/軟體觸發傳輸/傳輸完成中斷/通道致能禁能/外部請求)
+    - `sim/cocotb/test_adc.py` - ADC 介面測試 (暫存器讀寫/單次轉換/通道選擇/FIFO讀取/門檻中斷/自動掃描)
+  - **RTL 修正**:
+    - `formosa_irq_ctrl.v`: 修正 `reg_pending` 準位觸發邏輯 — 原公式 `(reg_pending | edge_triggered) & (reg_trigger | irq_sync2)` 無法為準位觸發中斷設定新的 pending 位元，改為 `((reg_pending | edge_triggered) & reg_trigger) | (irq_sync2 & ~reg_trigger)` 分離邊緣鎖存與準位直通
+    - `formosa_adc_if.v`: 消除 `reg_int_stat`、`fifo_wr_ptr`、`conv_channel` 的多驅動源競爭 — 使用事件旗標 (`thresh_hi_event`, `thresh_lo_event`, `scan_done_event`, `scan_conv_request`) 在 SPI/掃描邏輯與 Wishbone 暫存器邏輯之間傳遞事件，統一由單一 always 塊管理所有共享暫存器
+  - **Makefile 更新**: 新增 test_wdt, test_irq, test_dma, test_adc 四個測試目標，test_all 包含全部 10 個模組
+  - **測試結果**: UART 6/6, GPIO 6/6, SPI 6/6, Timer 6/6, I2C 6/6, PWM 6/6, WDT 6/6, IRQ 6/6, DMA 6/6, ADC 6/6 全部通過
+
 ### 2026-03-03 (八)
 - 修正 cocotb 模擬測試並達成全部 36 項測試通過 (6 模組 × 6 測試):
   - **UART RTL 修正**:

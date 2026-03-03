@@ -272,25 +272,28 @@ module formosa_adc_if (
     // ================================================================
     wire [9:0] adc_result = spi_rx_shift[9:0]; // 提取 10 位元 ADC 結果
 
+    // 事件旗標（用於跨 always 塊傳遞事件，避免多驅動源）
+    reg thresh_hi_event;   // 高門檻超越事件
+    reg thresh_lo_event;   // 低門檻低於事件
+
     always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
-            fifo_wr_ptr <= 0;
-        end else if (conv_done_pulse) begin
-            // 儲存到通道暫存器
-            ch_data[conv_channel] <= adc_result;
+            thresh_hi_event <= 1'b0;
+            thresh_lo_event <= 1'b0;
+        end else begin
+            thresh_hi_event <= 1'b0;
+            thresh_lo_event <= 1'b0;
 
-            // 寫入結果 FIFO
-            if (!fifo_full) begin
-                result_fifo[fifo_wr_ptr[FIFO_AW-1:0]] <=
-                    {conv_channel, 1'b1, 2'b00, adc_result};
-                fifo_wr_ptr <= fifo_wr_ptr + 1'b1;
+            if (conv_done_pulse) begin
+                // 儲存到通道暫存器
+                ch_data[conv_channel] <= adc_result;
+
+                // 門檻比較（透過事件旗標通知主暫存器邏輯）
+                if (adc_result > ch_thresh_hi[conv_channel])
+                    thresh_hi_event <= 1'b1;
+                if (adc_result < ch_thresh_lo[conv_channel])
+                    thresh_lo_event <= 1'b1;
             end
-
-            // 門檻比較
-            if (adc_result > ch_thresh_hi[conv_channel])
-                reg_int_stat[2] <= 1'b1; // 高門檻超越
-            if (adc_result < ch_thresh_lo[conv_channel])
-                reg_int_stat[3] <= 1'b1; // 低門檻低於
         end
     end
 
@@ -301,6 +304,10 @@ module formosa_adc_if (
     reg [2:0]  scan_ch_idx;        // 目前掃描的通道索引
     reg        scan_trigger;       // 掃描觸發信號
     reg        scan_active;        // 掃描進行中
+    reg        scan_done_event;    // 掃描完成事件旗標
+    reg        scan_conv_request;  // 掃描請求設定通道旗標
+    reg [2:0]  scan_conv_ch;      // 掃描請求的通道編號
+    reg        scan_conv_sgl;     // 掃描請求的單端/差動
 
     wire [7:0] scan_mask = reg_scan_ctrl[7:0];
     wire [15:0] scan_interval = reg_scan_ctrl[23:8];
@@ -311,8 +318,14 @@ module formosa_adc_if (
             scan_ch_idx       <= 3'h0;
             scan_trigger      <= 1'b0;
             scan_active       <= 1'b0;
+            scan_done_event   <= 1'b0;
+            scan_conv_request <= 1'b0;
+            scan_conv_ch      <= 3'h0;
+            scan_conv_sgl     <= 1'b0;
         end else begin
-            scan_trigger <= 1'b0;
+            scan_trigger      <= 1'b0;
+            scan_done_event   <= 1'b0;
+            scan_conv_request <= 1'b0;
 
             if (reg_ctrl[0] && reg_ctrl[2]) begin
                 // 自動掃描模式致能
@@ -328,21 +341,22 @@ module formosa_adc_if (
                 end else if (scan_active && !adc_busy) begin
                     // 尋找下一個要掃描的通道
                     if (scan_mask[scan_ch_idx]) begin
-                        // 此通道需要掃描
-                        conv_channel  <= scan_ch_idx;
-                        conv_sgl_diff <= reg_ctrl[6];
-                        scan_trigger  <= 1'b1;
+                        // 此通道需要掃描（透過旗標通知主邏輯設定 conv_channel）
+                        scan_conv_request <= 1'b1;
+                        scan_conv_ch      <= scan_ch_idx;
+                        scan_conv_sgl     <= reg_ctrl[6];
+                        scan_trigger      <= 1'b1;
                         // 準備下一個通道
                         if (scan_ch_idx == 3'd7) begin
-                            scan_active <= 1'b0;
-                            reg_int_stat[4] <= 1'b1; // 一輪掃描完成
+                            scan_active     <= 1'b0;
+                            scan_done_event <= 1'b1;
                         end
                         scan_ch_idx <= scan_ch_idx + 1'b1;
                     end else begin
                         // 跳過未致能的通道
                         if (scan_ch_idx == 3'd7) begin
-                            scan_active <= 1'b0;
-                            reg_int_stat[4] <= 1'b1;
+                            scan_active     <= 1'b0;
+                            scan_done_event <= 1'b1;
                         end
                         scan_ch_idx <= scan_ch_idx + 1'b1;
                     end
@@ -374,7 +388,7 @@ module formosa_adc_if (
     end
 
     // ================================================================
-    // 暫存器寫入邏輯
+    // 暫存器寫入邏輯（統一管理 reg_int_stat、fifo_wr_ptr、conv_channel）
     // ================================================================
     integer k;
     always @(posedge wb_clk_i) begin
@@ -382,8 +396,12 @@ module formosa_adc_if (
             reg_ctrl      <= 32'h0;
             reg_clk_div   <= 16'd49;  // 預設 SPI 時脈 = 系統時脈/100
             reg_int_en    <= 5'h0;
+            reg_int_stat  <= 5'h0;
             reg_scan_ctrl <= 32'h0;
+            fifo_wr_ptr   <= 0;
             fifo_rd_ptr   <= 0;
+            conv_channel  <= 3'h0;
+            conv_sgl_diff <= 1'b0;
             for (k = 0; k < 8; k = k + 1) begin
                 ch_thresh_hi[k] <= 10'h3FF; // 預設最大值
                 ch_thresh_lo[k] <= 10'h000; // 預設最小值
@@ -400,16 +418,32 @@ module formosa_adc_if (
                 fifo_rd_ptr <= 0;
             end
 
-            // 中斷狀態更新
+            // ---- 中斷狀態更新（統一在此 always 塊管理） ----
             if (conv_done_pulse) reg_int_stat[0] <= 1'b1;
             if (fifo_full)       reg_int_stat[1] <= 1'b1;
+            if (thresh_hi_event) reg_int_stat[2] <= 1'b1;
+            if (thresh_lo_event) reg_int_stat[3] <= 1'b1;
+            if (scan_done_event) reg_int_stat[4] <= 1'b1;
+
+            // ---- FIFO 寫入（統一在此管理 fifo_wr_ptr） ----
+            if (conv_done_pulse && !fifo_full) begin
+                result_fifo[fifo_wr_ptr[FIFO_AW-1:0]] <=
+                    {conv_channel, 1'b1, 2'b00, adc_result};
+                fifo_wr_ptr <= fifo_wr_ptr + 1'b1;
+            end
+
+            // ---- 掃描通道設定（統一管理 conv_channel/conv_sgl_diff） ----
+            if (scan_conv_request) begin
+                conv_channel  <= scan_conv_ch;
+                conv_sgl_diff <= scan_conv_sgl;
+            end
 
             // Wishbone 寫入
             if (wb_valid & wb_we_i & ~wb_ack_o) begin
                 case (reg_addr)
                     ADDR_CTRL:      begin
                         reg_ctrl <= wb_dat_i;
-                        // 若 START=1，設定通道與模式
+                        // 若 START=1 且非自動掃描模式，設定通道與模式
                         if (wb_dat_i[1] && !reg_ctrl[2]) begin
                             conv_channel  <= wb_dat_i[5:3];
                             conv_sgl_diff <= wb_dat_i[6];

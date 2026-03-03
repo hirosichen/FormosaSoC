@@ -64,6 +64,10 @@ help:
 	@echo "  make test_timer  - 執行 Timer 模組測試"
 	@echo "  make test_i2c    - 執行 I2C  模組測試"
 	@echo "  make test_pwm    - 執行 PWM  模組測試"
+	@echo "  make test_wdt    - 執行 WDT  模組測試"
+	@echo "  make test_irq    - 執行 IRQ  模組測試"
+	@echo "  make test_dma    - 執行 DMA  模組測試"
+	@echo "  make test_adc    - 執行 ADC  模組測試"
 	@echo "  make test_all    - 執行所有模組測試"
 	@echo ""
 	@echo "選項:"
@@ -153,10 +157,62 @@ test_pwm:
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 
 # ================================================================
+# WDT 測試目標
+# ================================================================
+.PHONY: test_wdt
+test_wdt:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(WDT_DIR)/formosa_wdt.v \
+		TOPLEVEL=formosa_wdt \
+		MODULE=test_wdt \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# IRQ 測試目標
+# ================================================================
+.PHONY: test_irq
+test_irq:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(IRQ_DIR)/formosa_irq_ctrl.v \
+		TOPLEVEL=formosa_irq_ctrl \
+		MODULE=test_irq \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# DMA 測試目標
+# ================================================================
+.PHONY: test_dma
+test_dma:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(DMA_DIR)/formosa_dma.v \
+		TOPLEVEL=formosa_dma \
+		MODULE=test_dma \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# ADC 測試目標
+# ================================================================
+.PHONY: test_adc
+test_adc:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(ADC_DIR)/formosa_adc_if.v \
+		TOPLEVEL=formosa_adc_if \
+		MODULE=test_adc \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
 # 執行所有測試
 # ================================================================
 .PHONY: test_all
-test_all: test_uart test_gpio test_spi test_timer test_i2c test_pwm
+test_all: test_uart test_gpio test_spi test_timer test_i2c test_pwm test_wdt test_irq test_dma test_adc
 	@echo "============================================"
 	@echo " 所有測試執行完畢"
 	@echo "============================================"

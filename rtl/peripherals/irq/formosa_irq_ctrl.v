@@ -192,20 +192,16 @@ module formosa_irq_ctrl (
         if (wb_rst_i) begin
             reg_pending <= 32'h0;
         end else begin
-            // 邊緣觸發的中斷：偵測到邊緣時設定
-            reg_pending <= reg_pending | edge_triggered;
-
-            // 準位觸發的中斷：直接反映輸入狀態
-            reg_pending <= (reg_pending | edge_triggered) &
-                           (reg_trigger | irq_sync2);
-            // 說明：
-            // - 邊緣觸發位元 (trigger=1): 保持鎖存值 | 新邊緣
-            // - 準位觸發位元 (trigger=0): 直接反映 irq_sync2
+            // 中斷待處理更新邏輯：
+            // - 邊緣觸發位元 (trigger=1): 保持鎖存值 | 新偵測邊緣
+            // - 準位觸發位元 (trigger=0): 直接反映 irq_sync2 輸入狀態
+            reg_pending <= ((reg_pending | edge_triggered) & reg_trigger)
+                         | (irq_sync2 & ~reg_trigger);
 
             // 確認清除 (ACK)
             if (wb_valid & wb_we_i & ~wb_ack_o && reg_addr == ADDR_ACK) begin
-                reg_pending <= ((reg_pending | edge_triggered) &
-                               (reg_trigger | irq_sync2)) & ~wb_dat_i;
+                reg_pending <= (((reg_pending | edge_triggered) & reg_trigger)
+                              | (irq_sync2 & ~reg_trigger)) & ~wb_dat_i;
             end
         end
     end
