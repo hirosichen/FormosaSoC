@@ -77,6 +77,11 @@ help:
 	@echo "  make test_dma_stress   - DMA 壓力測試"
 	@echo "  make test_wdt_stress   - WDT 壓力測試"
 	@echo "  make test_timer_stress - Timer 壓力測試"
+	@echo "  make test_gpio_stress  - GPIO 壓力測試"
+	@echo "  make test_spi_stress   - SPI 壓力測試"
+	@echo "  make test_i2c_stress   - I2C 壓力測試"
+	@echo "  make test_pwm_stress   - PWM 壓力測試"
+	@echo "  make test_adc_stress   - ADC 壓力測試"
 	@echo "  make test_stress_all   - 執行所有壓力測試"
 	@echo ""
 	@echo "整合測試:"
@@ -85,6 +90,8 @@ help:
 	@echo "SoC 核心測試:"
 	@echo "  make test_soc_core     - CPU 開機 + GPIO + UART 整合測試"
 	@echo "  make test_rv32i_isa    - RV32IM ISA 指令集合規測試 (12 項)"
+	@echo "  make test_core_modules - 核心模組測試 (ROM/SRAM/SYSCTRL/Arbiter)"
+	@echo "  make test_soc_periph   - CPU 驅動周邊整合測試 (6 項)"
 	@echo ""
 	@echo "選項:"
 	@echo "  SIM=icarus       - 使用 Icarus Verilog (預設)"
@@ -299,12 +306,77 @@ test_timer_stress:
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 
 # ================================================================
+# GPIO 壓力測試
+# ================================================================
+.PHONY: test_gpio_stress
+test_gpio_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(GPIO_DIR)/formosa_gpio.v \
+		TOPLEVEL=formosa_gpio \
+		MODULE=test_gpio_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# SPI 壓力測試
+# ================================================================
+.PHONY: test_spi_stress
+test_spi_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(SPI_DIR)/formosa_spi.v \
+		TOPLEVEL=formosa_spi \
+		MODULE=test_spi_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# I2C 壓力測試
+# ================================================================
+.PHONY: test_i2c_stress
+test_i2c_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(I2C_DIR)/formosa_i2c.v \
+		TOPLEVEL=formosa_i2c \
+		MODULE=test_i2c_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# PWM 壓力測試
+# ================================================================
+.PHONY: test_pwm_stress
+test_pwm_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(PWM_DIR)/formosa_pwm.v \
+		TOPLEVEL=formosa_pwm \
+		MODULE=test_pwm_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# ADC 壓力測試
+# ================================================================
+.PHONY: test_adc_stress
+test_adc_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(ADC_DIR)/formosa_adc_if.v \
+		TOPLEVEL=formosa_adc_if \
+		MODULE=test_adc_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
 # 執行所有壓力測試
 # ================================================================
 .PHONY: test_stress_all
-test_stress_all: test_uart_stress test_irq_stress test_dma_stress test_wdt_stress test_timer_stress
+test_stress_all: test_uart_stress test_irq_stress test_dma_stress test_wdt_stress test_timer_stress test_gpio_stress test_spi_stress test_i2c_stress test_pwm_stress test_adc_stress
 	@echo "============================================"
-	@echo " 所有壓力測試執行完畢 (30 項)"
+	@echo " 所有壓力測試執行完畢 (60 項)"
 	@echo "============================================"
 
 # ================================================================
@@ -374,12 +446,40 @@ test_rv32i_isa:
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 
 # ================================================================
-# 執行全部測試（單元 + 壓力 + 整合）
+# 核心模組測試 (ROM/SRAM/SYSCTRL/Arbiter 透過 CPU)
+# ================================================================
+.PHONY: test_core_modules
+test_core_modules:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES="$(SOC_VERILOG_SOURCES)" \
+		TOPLEVEL=tb_soc_core \
+		MODULE=test_core_modules \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# CPU 驅動周邊整合測試
+# ================================================================
+.PHONY: test_soc_periph
+test_soc_periph:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES="$(SOC_VERILOG_SOURCES)" \
+		TOPLEVEL=tb_soc_core \
+		MODULE=test_soc_periph \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# 執行全部測試（單元 + 壓力 + 整合 + SoC）
 # ================================================================
 .PHONY: test_complete
-test_complete: test_all test_stress_all test_bus
+test_complete: test_all test_stress_all test_bus test_soc_core test_rv32i_isa test_core_modules test_soc_periph
 	@echo "============================================"
-	@echo " 全部測試執行完畢 (60 + 30 + 6 = 96 項)"
+	@echo " 全部測試執行完畢"
+	@echo " 60 單元 + 60 壓力 + 6 整合 + 3 SoC"
+	@echo " + 12 ISA + 6 核心 + 6 周邊 = 153 項"
 	@echo "============================================"
 
 # ================================================================

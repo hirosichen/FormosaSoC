@@ -105,6 +105,21 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (十三)
+- 新增 42 項測試，達成 153 項全部通過完整測試覆蓋：
+  - **5 組周邊壓力測試** (30 項新增):
+    - `test_gpio_stress.py` — 快速切換 100 次、Walking-1/0 全腳位、中斷風暴、方向動態切換、輸出致能遮罩、雙邊緣中斷
+    - `test_spi_stress.py` — 背靠背傳輸 50 次、CPOL/CPHA 四模式、CS 快速切換、時脈除數遍歷、特殊資料模式、中斷清除壓力
+    - `test_i2c_stress.py` — 時脈除數遍歷、連續 START/STOP 30 次、暫存器讀寫一致性、命令序列壓力、標準/快速模式切換、中斷循環
+    - `test_pwm_stress.py` — 快速佔空比變更 101 次、多通道同時運行、週期遍歷、極端佔空比 (0%/100%)、死區時間邊界值、快速致能/禁能 50 次
+    - `test_adc_stress.py` — 快速通道切換、連續轉換 20 次、門檻邊界值、暫存器讀寫壓力 30 輪、掃描控制快速切換、中斷致能/清除循環
+  - **核心模組測試** (6 項, `test_core_modules.py`):
+    - SYSCTRL 暫存器讀取 (CHIP_ID/VERSION/SCRATCH)、SRAM byte-enable 寫入、SRAM 邊界地址存取、ROM 唯讀驗證、仲裁器優先權測試、無效地址存取
+  - **CPU 驅動周邊整合測試** (6 項, `test_soc_periph.py`):
+    - Timer 倒數計時、SPI 暫存器配置、SYSCTRL CHIP_ID 讀取、SRAM 資料完整性、多周邊依序存取、IRQ 控制器配置
+  - **Makefile 更新**: 新增 10 個壓力測試目標 + test_core_modules + test_soc_periph，test_stress_all 擴充為 60 項，test_complete 總計 153 項
+  - **測試結果**: 60 單元 + 60 壓力 + 6 整合 + 3 SoC 核心 + 12 ISA + 6 核心模組 + 6 CPU 周邊 = **153 項全部 PASS**
+
 ### 2026-03-03 (十二)
 - 完成 RV32IM ISA 指令集合規測試，CPU 核心重寫並通過全部 12 項 ISA 測試，總測試量達 111 項全部通過：
   - **CPU 核心重寫** (`rtl/core/VexRiscv.v`):
