@@ -1,14 +1,19 @@
 // =============================================================================
-// VexRiscv — 簡化版 RISC-V CPU 核心 (RV32IMC 相容)
+// VexRiscv — RISC-V CPU 核心 (RV32IM)
 // =============================================================================
-// 此模組為 FormosaSoC 使用的 RISC-V CPU 核心。
-// 正式版本應由 SpinalHDL VexRiscv 產生器產出 (tools/vexriscv_gen/)。
-// 本檔案為可模擬的簡化實作，支援基本指令擷取與執行。
+// FormosaSoC 使用的 RISC-V CPU 核心。
+// 正式版本可由 SpinalHDL VexRiscv 產生器產出 (tools/vexriscv_gen/)。
+// 本檔案為可模擬的完整 RV32IM 實作。
 //
 // 介面：
 //   - iBus: Wishbone B4 Master (指令擷取)
 //   - dBus: Wishbone B4 Master (資料存取)
 //   - 中斷: timerInterrupt, softwareInterrupt, externalInterrupt
+//
+// 支援指令集:
+//   RV32I: 全部 40 條指令 (含 FENCE/ECALL/EBREAK/MRET)
+//   RV32M: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU
+//   CSR:   CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
 //
 // 重置向量: 0x00000000
 // =============================================================================
@@ -113,6 +118,23 @@ module VexRiscv (
     reg [31:0] rd_val;
     reg        branch_taken;
 
+    // M-extension 乘法/除法中間結果
+    wire signed [63:0] mul_ss   = $signed(rs1_val) * $signed(rs2_val);
+    wire signed [63:0] mul_su   = $signed(rs1_val) * $signed({1'b0, rs2_val});
+    wire        [63:0] mul_uu   = {32'd0, rs1_val} * {32'd0, rs2_val};
+
+    // 除法 (組合邏輯，可合成但面積較大)
+    wire signed [31:0] rs1_s    = $signed(rs1_val);
+    wire signed [31:0] rs2_s    = $signed(rs2_val);
+    wire        [31:0] div_u    = (rs2_val == 32'd0) ? 32'hFFFFFFFF      : rs1_val / rs2_val;
+    wire signed [31:0] div_s    = (rs2_val == 32'd0) ? -32'sd1           :
+                                  (rs1_s == -32'sd2147483648 && rs2_s == -32'sd1) ? -32'sd2147483648 :
+                                  rs1_s / rs2_s;
+    wire        [31:0] rem_u    = (rs2_val == 32'd0) ? rs1_val           : rs1_val % rs2_val;
+    wire signed [31:0] rem_s    = (rs2_val == 32'd0) ? rs1_s             :
+                                  (rs1_s == -32'sd2147483648 && rs2_s == -32'sd1) ? 32'sd0 :
+                                  rs1_s % rs2_s;
+
     // =========================================================================
     // CSR 暫存器 (最小集合)
     // =========================================================================
@@ -132,25 +154,43 @@ module VexRiscv (
         (softwareInterrupt && csr_mie[3])
     );
 
+    // CSR 讀取 (組合邏輯)
+    reg [31:0] csr_rdata;
+    always @(*) begin
+        case (instr[31:20])
+            12'h300: csr_rdata = csr_mstatus;
+            12'h304: csr_rdata = csr_mie;
+            12'h305: csr_rdata = csr_mtvec;
+            12'h340: csr_rdata = csr_mscratch;
+            12'h341: csr_rdata = csr_mepc;
+            12'h342: csr_rdata = csr_mcause;
+            12'h344: csr_rdata = csr_mip;
+            12'hF11: csr_rdata = 32'h00000000; // mvendorid
+            12'hF12: csr_rdata = 32'h00000000; // marchid
+            12'hF13: csr_rdata = 32'h00000000; // mimpid
+            12'hF14: csr_rdata = 32'h00000000; // mhartid
+            default: csr_rdata = 32'h00000000;
+        endcase
+    end
+
     // JTAG — 暫時不使用
     assign jtag_tdo = 1'b0;
-
-    // =========================================================================
-    // iBus / dBus 初始化（組合邏輯預設值由 always 塊管理）
-    // =========================================================================
 
     // =========================================================================
     // 主要狀態機
     // =========================================================================
     integer idx;
 
+    // SB/SH 位移量計算 (避免 truncation 問題)
+    wire [4:0] sb_shift_s = {3'b0, (rs1_val[1:0] + imm_s[1:0])} << 3;
+    wire [4:0] sh_shift_s = {3'b0, (rs1_val[1]   ^ imm_s[1])}   << 4;
+
     always @(posedge clk) begin
         if (reset) begin
             pc <= 32'h00000000;
             state <= S_FETCH;
-            instr <= 32'h00000013;  // NOP (addi x0, x0, 0)
+            instr <= 32'h00000013;  // NOP
 
-            // 清除匯流排信號
             iBusWishbone_ADR      <= 32'd0;
             iBusWishbone_DAT_MOSI <= 32'd0;
             iBusWishbone_WE       <= 1'b0;
@@ -169,7 +209,6 @@ module VexRiscv (
             dBusWishbone_CTI      <= 3'b000;
             dBusWishbone_BTE      <= 2'b00;
 
-            // 清除 ALU / 記憶體暫存器
             alu_result    <= 32'd0;
             mem_addr      <= 32'd0;
             mem_wdata     <= 32'd0;
@@ -181,7 +220,6 @@ module VexRiscv (
             branch_taken  <= 1'b0;
             next_pc       <= 32'd4;
 
-            // CSR 初始值
             csr_mtvec    <= 32'h00000000;
             csr_mepc     <= 32'h00000000;
             csr_mcause   <= 32'h00000000;
@@ -190,37 +228,32 @@ module VexRiscv (
             csr_mie      <= 32'h00000000;
             csr_mip      <= 32'h00000000;
 
-            // 清除暫存器檔
-            for (idx = 0; idx < 32; idx = idx + 1) begin
+            for (idx = 0; idx < 32; idx = idx + 1)
                 regs[idx] <= 32'd0;
-            end
 
         end else begin
-            // 更新 MIP (中斷待處理)
+            // 更新 MIP
             csr_mip[11] <= externalInterrupt;
             csr_mip[7]  <= timerInterrupt;
             csr_mip[3]  <= softwareInterrupt;
 
             case (state)
                 // =============================================================
-                // FETCH: 從 iBus 取指
+                // FETCH
                 // =============================================================
                 S_FETCH: begin
-                    // 檢查中斷
                     if (irq_pending && !iBusWishbone_CYC) begin
                         csr_mepc <= pc;
                         if (externalInterrupt && csr_mie[11])
-                            csr_mcause <= 32'h8000000B;  // M external
+                            csr_mcause <= 32'h8000000B;
                         else if (timerInterrupt && csr_mie[7])
-                            csr_mcause <= 32'h80000007;  // M timer
+                            csr_mcause <= 32'h80000007;
                         else
-                            csr_mcause <= 32'h80000003;  // M software
-                        csr_mstatus[7]  <= csr_mstatus[3]; // MPIE <= MIE
-                        csr_mstatus[3]  <= 1'b0;           // MIE <= 0
+                            csr_mcause <= 32'h80000003;
+                        csr_mstatus[7] <= csr_mstatus[3];
+                        csr_mstatus[3] <= 1'b0;
                         pc <= csr_mtvec;
-                        // 保持 FETCH state，下一拍用新 pc 取指
                     end else if (!iBusWishbone_CYC) begin
-                        // 發起取指請求
                         iBusWishbone_ADR <= pc;
                         iBusWishbone_WE  <= 1'b0;
                         iBusWishbone_SEL <= 4'b1111;
@@ -237,7 +270,7 @@ module VexRiscv (
                 end
 
                 // =============================================================
-                // DECODE + EXECUTE (合併以簡化)
+                // DECODE: 解碼指令，計算 ALU 結果
                 // =============================================================
                 S_DECODE: begin
                     rd_we <= 1'b0;
@@ -281,12 +314,12 @@ module VexRiscv (
                         // --- Branch ---
                         7'b1100011: begin
                             case (funct3)
-                                3'b000: branch_taken <= (rs1_val == rs2_val);                    // BEQ
-                                3'b001: branch_taken <= (rs1_val != rs2_val);                    // BNE
-                                3'b100: branch_taken <= ($signed(rs1_val) < $signed(rs2_val));   // BLT
-                                3'b101: branch_taken <= ($signed(rs1_val) >= $signed(rs2_val));  // BGE
-                                3'b110: branch_taken <= (rs1_val < rs2_val);                     // BLTU
-                                3'b111: branch_taken <= (rs1_val >= rs2_val);                    // BGEU
+                                3'b000: branch_taken <= (rs1_val == rs2_val);
+                                3'b001: branch_taken <= (rs1_val != rs2_val);
+                                3'b100: branch_taken <= ($signed(rs1_val) < $signed(rs2_val));
+                                3'b101: branch_taken <= ($signed(rs1_val) >= $signed(rs2_val));
+                                3'b110: branch_taken <= (rs1_val < rs2_val);
+                                3'b111: branch_taken <= (rs1_val >= rs2_val);
                                 default: branch_taken <= 1'b0;
                             endcase
                             next_pc <= pc + imm_b;
@@ -299,11 +332,11 @@ module VexRiscv (
                             mem_we <= 1'b0;
                             mem_req <= 1'b1;
                             case (funct3)
-                                3'b000: mem_sel <= 4'b0001 << ((rs1_val + imm_i) & 2'b11); // LB
-                                3'b001: mem_sel <= 4'b0011 << ((rs1_val + imm_i) & 2'b10); // LH
-                                3'b010: mem_sel <= 4'b1111;                                 // LW
-                                3'b100: mem_sel <= 4'b0001 << ((rs1_val + imm_i) & 2'b11); // LBU
-                                3'b101: mem_sel <= 4'b0011 << ((rs1_val + imm_i) & 2'b10); // LHU
+                                3'b000: mem_sel <= 4'b0001 << ((rs1_val + imm_i) & 2'b11);
+                                3'b001: mem_sel <= 4'b0011 << ((rs1_val + imm_i) & 2'b10);
+                                3'b010: mem_sel <= 4'b1111;
+                                3'b100: mem_sel <= 4'b0001 << ((rs1_val + imm_i) & 2'b11);
+                                3'b101: mem_sel <= 4'b0011 << ((rs1_val + imm_i) & 2'b10);
                                 default: mem_sel <= 4'b1111;
                             endcase
                             state <= S_MEMORY;
@@ -317,11 +350,20 @@ module VexRiscv (
                             case (funct3)
                                 3'b000: begin // SB
                                     mem_sel <= 4'b0001 << ((rs1_val + imm_s) & 2'b11);
-                                    mem_wdata <= rs2_val << ({3'b0, (rs1_val + imm_s) & 2'b11} * 8);
+                                    case ((rs1_val + imm_s) & 2'b11)
+                                        2'b00: mem_wdata <= {24'd0, rs2_val[7:0]};
+                                        2'b01: mem_wdata <= {16'd0, rs2_val[7:0], 8'd0};
+                                        2'b10: mem_wdata <= {8'd0, rs2_val[7:0], 16'd0};
+                                        2'b11: mem_wdata <= {rs2_val[7:0], 24'd0};
+                                    endcase
                                 end
                                 3'b001: begin // SH
                                     mem_sel <= 4'b0011 << ((rs1_val + imm_s) & 2'b10);
-                                    mem_wdata <= rs2_val << ({3'b0, (rs1_val + imm_s) & 2'b10} * 8);
+                                    case ((rs1_val + imm_s) & 2'b10)
+                                        2'b00: mem_wdata <= {16'd0, rs2_val[15:0]};
+                                        2'b10: mem_wdata <= {rs2_val[15:0], 16'd0};
+                                        default: mem_wdata <= {16'd0, rs2_val[15:0]};
+                                    endcase
                                 end
                                 3'b010: begin // SW
                                     mem_sel <= 4'b1111;
@@ -338,55 +380,65 @@ module VexRiscv (
                         // --- ALU Immediate ---
                         7'b0010011: begin
                             case (funct3)
-                                3'b000: alu_result <= rs1_val + imm_i;                          // ADDI
-                                3'b010: alu_result <= {31'd0, $signed(rs1_val) < $signed(imm_i)}; // SLTI
-                                3'b011: alu_result <= {31'd0, rs1_val < imm_i};                 // SLTIU
-                                3'b100: alu_result <= rs1_val ^ imm_i;                          // XORI
-                                3'b110: alu_result <= rs1_val | imm_i;                          // ORI
-                                3'b111: alu_result <= rs1_val & imm_i;                          // ANDI
-                                3'b001: alu_result <= rs1_val << instr[24:20];                   // SLLI
+                                3'b000: rd_val <= rs1_val + imm_i;                                // ADDI
+                                3'b010: rd_val <= {31'd0, $signed(rs1_val) < $signed(imm_i)};     // SLTI
+                                3'b011: rd_val <= {31'd0, rs1_val < imm_i};                       // SLTIU
+                                3'b100: rd_val <= rs1_val ^ imm_i;                                // XORI
+                                3'b110: rd_val <= rs1_val | imm_i;                                // ORI
+                                3'b111: rd_val <= rs1_val & imm_i;                                // ANDI
+                                3'b001: rd_val <= rs1_val << instr[24:20];                        // SLLI
                                 3'b101: begin
                                     if (funct7[5])
-                                        alu_result <= $signed(rs1_val) >>> instr[24:20];        // SRAI
+                                        rd_val <= $signed(rs1_val) >>> instr[24:20];              // SRAI
                                     else
-                                        alu_result <= rs1_val >> instr[24:20];                  // SRLI
+                                        rd_val <= rs1_val >> instr[24:20];                        // SRLI
                                 end
                             endcase
-                            rd_val <= alu_result;
                             rd_we <= (rd != 5'd0);
-                            state <= S_EXECUTE;  // 需額外一拍讓 alu_result 穩定
+                            state <= S_WRITEBACK;
                         end
 
                         // --- ALU Register ---
                         7'b0110011: begin
-                            case ({funct7, funct3})
-                                10'b0000000_000: alu_result <= rs1_val + rs2_val;               // ADD
-                                10'b0100000_000: alu_result <= rs1_val - rs2_val;               // SUB
-                                10'b0000000_001: alu_result <= rs1_val << rs2_val[4:0];          // SLL
-                                10'b0000000_010: alu_result <= {31'd0, $signed(rs1_val) < $signed(rs2_val)}; // SLT
-                                10'b0000000_011: alu_result <= {31'd0, rs1_val < rs2_val};       // SLTU
-                                10'b0000000_100: alu_result <= rs1_val ^ rs2_val;                // XOR
-                                10'b0000000_101: alu_result <= rs1_val >> rs2_val[4:0];          // SRL
-                                10'b0100000_101: alu_result <= $signed(rs1_val) >>> rs2_val[4:0]; // SRA
-                                10'b0000000_110: alu_result <= rs1_val | rs2_val;                // OR
-                                10'b0000000_111: alu_result <= rs1_val & rs2_val;                // AND
-                                // M extension
-                                10'b0000001_000: alu_result <= rs1_val * rs2_val;                // MUL
-                                default: alu_result <= 32'd0;
-                            endcase
-                            rd_val <= alu_result;
+                            if (funct7 == 7'b0000001) begin
+                                // M-extension
+                                case (funct3)
+                                    3'b000: rd_val <= mul_ss[31:0];                               // MUL
+                                    3'b001: rd_val <= mul_ss[63:32];                              // MULH
+                                    3'b010: rd_val <= mul_su[63:32];                              // MULHSU
+                                    3'b011: rd_val <= mul_uu[63:32];                              // MULHU
+                                    3'b100: rd_val <= div_s;                                      // DIV
+                                    3'b101: rd_val <= div_u;                                      // DIVU
+                                    3'b110: rd_val <= rem_s;                                      // REM
+                                    3'b111: rd_val <= rem_u;                                      // REMU
+                                endcase
+                            end else begin
+                                case ({funct7, funct3})
+                                    10'b0000000_000: rd_val <= rs1_val + rs2_val;                  // ADD
+                                    10'b0100000_000: rd_val <= rs1_val - rs2_val;                  // SUB
+                                    10'b0000000_001: rd_val <= rs1_val << rs2_val[4:0];            // SLL
+                                    10'b0000000_010: rd_val <= {31'd0, $signed(rs1_val) < $signed(rs2_val)}; // SLT
+                                    10'b0000000_011: rd_val <= {31'd0, rs1_val < rs2_val};         // SLTU
+                                    10'b0000000_100: rd_val <= rs1_val ^ rs2_val;                  // XOR
+                                    10'b0000000_101: rd_val <= rs1_val >> rs2_val[4:0];            // SRL
+                                    10'b0100000_101: rd_val <= $signed(rs1_val) >>> rs2_val[4:0];  // SRA
+                                    10'b0000000_110: rd_val <= rs1_val | rs2_val;                  // OR
+                                    10'b0000000_111: rd_val <= rs1_val & rs2_val;                  // AND
+                                    default: rd_val <= 32'd0;
+                                endcase
+                            end
                             rd_we <= (rd != 5'd0);
-                            state <= S_EXECUTE;
+                            state <= S_WRITEBACK;
                         end
 
-                        // --- SYSTEM (CSR / ECALL / MRET) ---
+                        // --- SYSTEM ---
                         7'b1110011: begin
                             case (funct3)
                                 3'b000: begin
                                     case (instr[31:20])
                                         12'h000: begin // ECALL
                                             csr_mepc <= pc;
-                                            csr_mcause <= 32'd11; // Environment call from M-mode
+                                            csr_mcause <= 32'd11;
                                             csr_mstatus[7] <= csr_mstatus[3];
                                             csr_mstatus[3] <= 1'b0;
                                             next_pc <= csr_mtvec;
@@ -400,27 +452,102 @@ module VexRiscv (
                                             branch_taken <= 1'b1;
                                             state <= S_WRITEBACK;
                                         end
+                                        12'h001: begin // EBREAK
+                                            csr_mepc <= pc;
+                                            csr_mcause <= 32'd3;
+                                            csr_mstatus[7] <= csr_mstatus[3];
+                                            csr_mstatus[3] <= 1'b0;
+                                            next_pc <= csr_mtvec;
+                                            branch_taken <= 1'b1;
+                                            state <= S_WRITEBACK;
+                                        end
                                         default: state <= S_WRITEBACK;
                                     endcase
                                 end
                                 3'b001: begin // CSRRW
-                                    rd_val <= csr_read(instr[31:20]);
+                                    rd_val <= csr_rdata;
                                     rd_we <= (rd != 5'd0);
-                                    csr_write(instr[31:20], rs1_val);
+                                    case (instr[31:20])
+                                        12'h300: csr_mstatus  <= rs1_val;
+                                        12'h304: csr_mie      <= rs1_val;
+                                        12'h305: csr_mtvec    <= rs1_val;
+                                        12'h340: csr_mscratch <= rs1_val;
+                                        12'h341: csr_mepc     <= rs1_val;
+                                        default: ;
+                                    endcase
                                     state <= S_WRITEBACK;
                                 end
                                 3'b010: begin // CSRRS
-                                    rd_val <= csr_read(instr[31:20]);
+                                    rd_val <= csr_rdata;
                                     rd_we <= (rd != 5'd0);
-                                    if (rs1 != 5'd0)
-                                        csr_write(instr[31:20], csr_read(instr[31:20]) | rs1_val);
+                                    if (rs1 != 5'd0) begin
+                                        case (instr[31:20])
+                                            12'h300: csr_mstatus  <= csr_rdata | rs1_val;
+                                            12'h304: csr_mie      <= csr_rdata | rs1_val;
+                                            12'h305: csr_mtvec    <= csr_rdata | rs1_val;
+                                            12'h340: csr_mscratch <= csr_rdata | rs1_val;
+                                            12'h341: csr_mepc     <= csr_rdata | rs1_val;
+                                            default: ;
+                                        endcase
+                                    end
                                     state <= S_WRITEBACK;
                                 end
                                 3'b011: begin // CSRRC
-                                    rd_val <= csr_read(instr[31:20]);
+                                    rd_val <= csr_rdata;
                                     rd_we <= (rd != 5'd0);
-                                    if (rs1 != 5'd0)
-                                        csr_write(instr[31:20], csr_read(instr[31:20]) & ~rs1_val);
+                                    if (rs1 != 5'd0) begin
+                                        case (instr[31:20])
+                                            12'h300: csr_mstatus  <= csr_rdata & ~rs1_val;
+                                            12'h304: csr_mie      <= csr_rdata & ~rs1_val;
+                                            12'h305: csr_mtvec    <= csr_rdata & ~rs1_val;
+                                            12'h340: csr_mscratch <= csr_rdata & ~rs1_val;
+                                            12'h341: csr_mepc     <= csr_rdata & ~rs1_val;
+                                            default: ;
+                                        endcase
+                                    end
+                                    state <= S_WRITEBACK;
+                                end
+                                3'b101: begin // CSRRWI
+                                    rd_val <= csr_rdata;
+                                    rd_we <= (rd != 5'd0);
+                                    case (instr[31:20])
+                                        12'h300: csr_mstatus  <= {27'd0, rs1};  // uimm = rs1 field
+                                        12'h304: csr_mie      <= {27'd0, rs1};
+                                        12'h305: csr_mtvec    <= {27'd0, rs1};
+                                        12'h340: csr_mscratch <= {27'd0, rs1};
+                                        12'h341: csr_mepc     <= {27'd0, rs1};
+                                        default: ;
+                                    endcase
+                                    state <= S_WRITEBACK;
+                                end
+                                3'b110: begin // CSRRSI
+                                    rd_val <= csr_rdata;
+                                    rd_we <= (rd != 5'd0);
+                                    if (rs1 != 5'd0) begin
+                                        case (instr[31:20])
+                                            12'h300: csr_mstatus  <= csr_rdata | {27'd0, rs1};
+                                            12'h304: csr_mie      <= csr_rdata | {27'd0, rs1};
+                                            12'h305: csr_mtvec    <= csr_rdata | {27'd0, rs1};
+                                            12'h340: csr_mscratch <= csr_rdata | {27'd0, rs1};
+                                            12'h341: csr_mepc     <= csr_rdata | {27'd0, rs1};
+                                            default: ;
+                                        endcase
+                                    end
+                                    state <= S_WRITEBACK;
+                                end
+                                3'b111: begin // CSRRCI
+                                    rd_val <= csr_rdata;
+                                    rd_we <= (rd != 5'd0);
+                                    if (rs1 != 5'd0) begin
+                                        case (instr[31:20])
+                                            12'h300: csr_mstatus  <= csr_rdata & ~{27'd0, rs1};
+                                            12'h304: csr_mie      <= csr_rdata & ~{27'd0, rs1};
+                                            12'h305: csr_mtvec    <= csr_rdata & ~{27'd0, rs1};
+                                            12'h340: csr_mscratch <= csr_rdata & ~{27'd0, rs1};
+                                            12'h341: csr_mepc     <= csr_rdata & ~{27'd0, rs1};
+                                            default: ;
+                                        endcase
+                                    end
                                     state <= S_WRITEBACK;
                                 end
                                 default: state <= S_WRITEBACK;
@@ -440,10 +567,9 @@ module VexRiscv (
                 end
 
                 // =============================================================
-                // EXECUTE: ALU 結果鎖定
+                // EXECUTE: 不再使用 (保留以兼容)
                 // =============================================================
                 S_EXECUTE: begin
-                    rd_val <= alu_result;
                     state <= S_WRITEBACK;
                 end
 
@@ -464,7 +590,6 @@ module VexRiscv (
                         dBusWishbone_STB <= 1'b0;
                         dBusWishbone_CYC <= 1'b0;
                         if (!mem_we) begin
-                            // Load — 擷取並符號/零擴展
                             case (funct3)
                                 3'b000: begin // LB
                                     case (mem_addr[1:0])
@@ -504,20 +629,15 @@ module VexRiscv (
                 end
 
                 // =============================================================
-                // WRITEBACK: 暫存器回寫 + PC 更新
+                // WRITEBACK
                 // =============================================================
                 S_WRITEBACK: begin
-                    if (rd_we && rd != 5'd0) begin
+                    if (rd_we && rd != 5'd0)
                         regs[rd] <= rd_val;
-                    end
                     if (branch_taken)
                         pc <= next_pc;
-                    else if (opcode != 7'b1100011)  // 非 branch 指令
+                    else
                         pc <= pc + 32'd4;
-                    else begin
-                        // Branch not taken
-                        pc <= pc + 32'd4;
-                    end
                     state <= S_FETCH;
                     rd_we <= 1'b0;
                     mem_req <= 1'b0;
@@ -527,47 +647,6 @@ module VexRiscv (
             endcase
         end
     end
-
-    // =========================================================================
-    // CSR 讀取函式
-    // =========================================================================
-    function [31:0] csr_read;
-        input [11:0] addr;
-        begin
-            case (addr)
-                12'h300: csr_read = csr_mstatus;
-                12'h304: csr_read = csr_mie;
-                12'h305: csr_read = csr_mtvec;
-                12'h340: csr_read = csr_mscratch;
-                12'h341: csr_read = csr_mepc;
-                12'h342: csr_read = csr_mcause;
-                12'h344: csr_read = csr_mip;
-                12'hF11: csr_read = 32'h00000000; // mvendorid
-                12'hF12: csr_read = 32'h00000000; // marchid
-                12'hF13: csr_read = 32'h00000000; // mimpid
-                12'hF14: csr_read = 32'h00000000; // mhartid
-                default: csr_read = 32'h00000000;
-            endcase
-        end
-    endfunction
-
-    // =========================================================================
-    // CSR 寫入任務
-    // =========================================================================
-    task csr_write;
-        input [11:0] addr;
-        input [31:0] data;
-        begin
-            case (addr)
-                12'h300: csr_mstatus  <= data;
-                12'h304: csr_mie      <= data;
-                12'h305: csr_mtvec    <= data;
-                12'h340: csr_mscratch <= data;
-                12'h341: csr_mepc     <= data;
-                default: ;
-            endcase
-        end
-    endtask
 
 endmodule
 

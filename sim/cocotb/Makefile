@@ -84,6 +84,7 @@ help:
 	@echo ""
 	@echo "SoC 核心測試:"
 	@echo "  make test_soc_core     - CPU 開機 + GPIO + UART 整合測試"
+	@echo "  make test_rv32i_isa    - RV32IM ISA 指令集合規測試 (12 項)"
 	@echo ""
 	@echo "選項:"
 	@echo "  SIM=icarus       - 使用 Icarus Verilog (預設)"
@@ -356,6 +357,19 @@ test_soc_core:
 		VERILOG_SOURCES="$(SOC_VERILOG_SOURCES)" \
 		TOPLEVEL=tb_soc_core \
 		MODULE=test_soc_core \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# RV32IM ISA 指令集合規測試
+# ================================================================
+.PHONY: test_rv32i_isa
+test_rv32i_isa:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES="$(SOC_VERILOG_SOURCES)" \
+		TOPLEVEL=tb_soc_core \
+		MODULE=test_rv32i_isa \
 		SIM=$(SIM) \
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 

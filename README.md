@@ -105,6 +105,32 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (十二)
+- 完成 RV32IM ISA 指令集合規測試，CPU 核心重寫並通過全部 12 項 ISA 測試，總測試量達 111 項全部通過：
+  - **CPU 核心重寫** (`rtl/core/VexRiscv.v`):
+    - 修正 ALU 時序 bug：結果直接寫入 rd_val，消除 pipeline 延遲導致的舊值問題
+    - 完整實作 M-extension：MUL/MULH/MULHSU/MULHU/DIV/DIVU/REM/REMU
+    - M-extension 邊界情況：除以零 → 0xFFFFFFFF/-1、MIN_INT/-1 溢位 → MIN_INT
+    - 修正 SB/SH store：根據位址低位元正確放置資料 byte/halfword
+    - CSR 改為 inline 邏輯，新增 CSRRWI/CSRRSI/CSRRCI、EBREAK 支援
+    - ALU 指令 DECODE → WRITEBACK 兩階段（跳過 EXECUTE），提升效率
+  - **RV32IM ISA 合規測試** (`sim/cocotb/test_rv32i_isa.py`, 12 項測試):
+    - `test_alu_rtype` — R-type ALU: ADD/SUB/SLL/SLT/SLTU/XOR/SRL/SRA/OR/AND
+    - `test_alu_itype` — I-type ALU: ADDI/SLTI/SLTIU/XORI/ORI/ANDI/SLLI/SRLI/SRAI
+    - `test_lui_auipc` — U-type: LUI / AUIPC
+    - `test_load_store_word` — 記憶體: LW / SW
+    - `test_load_store_byte` — 記憶體: LB / LBU / SB (符號延伸 + 零延伸)
+    - `test_load_store_half` — 記憶體: LH / LHU / SH (半字組操作)
+    - `test_branch` — 分支: BEQ/BNE/BLT/BGE/BLTU/BGEU
+    - `test_jal_jalr` — 跳轉: JAL / JALR (鏈結暫存器)
+    - `test_mul_div` — M-extension: MUL/MULH/MULHSU/MULHU/DIV/DIVU/REM/REMU
+    - `test_csr_basic` — CSR: CSRRW / CSRRS / CSRRC (mscratch)
+    - `test_edge_cases` — 邊界: x0 不可變、符號延伸、溢位
+    - `test_fibonacci` — 完整程式: 計算 fib(10) = 55，驗證指令交互作用
+  - **測試方法**: Python 內建 RISC-V 指令編碼器，直接透過 cocotb 載入 ROM 陣列，無需交叉編譯器
+  - **Makefile 更新**: 新增 `test_rv32i_isa` 目標
+  - **測試結果**: 60 單元 + 30 壓力 + 6 整合 + 3 SoC 核心 + 12 ISA = 111 項全部 PASS
+
 ### 2026-03-03 (十一)
 - 整合 VexRiscv RISC-V CPU 核心，完成 SoC 核心互連與 3 項 CPU 開機整合測試全部通過：
   - **Phase A — SpinalHDL VexRiscv 產生器**:
