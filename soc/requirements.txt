@@ -1,0 +1,54 @@
+# =============================================================================
+# FormosaSoC Python 依賴套件
+# =============================================================================
+# 安裝方式：
+#   pip install -r requirements.txt
+#
+# 建議使用虛擬環境 (virtual environment)：
+#   python -m venv .venv
+#   source .venv/bin/activate    # Linux/macOS
+#   .venv\Scripts\activate       # Windows
+#   pip install -r requirements.txt
+# =============================================================================
+
+# --- LiteX 核心框架 ---
+# LiteX 是 SoC 建構框架，提供 CPU 整合、匯流排互連、週邊產生等功能
+migen>=0.9.2
+litex>=2024.04
+litedram>=2024.04
+liteeth>=2024.04
+litespi>=2024.04
+litescope>=2024.04
+
+# --- CPU 核心 ---
+# VexRiscv 是用 SpinalHDL 撰寫的高效能 RISC-V 軟核處理器
+# pythondata 套件包含預先建構好的 CPU Verilog 檔案
+pythondata-cpu-vexriscv>=2024.04
+
+# --- FPGA 工具鏈支援 ---
+# 各家 FPGA 廠商的開源/官方工具鏈 Python 介面
+
+# Gowin (高雲半導體) - Tang Nano 20K 使用
+pythondata-misc-tapcfg>=0.3
+
+# --- 通用工具 ---
+pyserial>=3.5          # 串列埠通訊（UART 除錯、韌體上傳）
+pyyaml>=6.0            # YAML 設定檔解析
+jinja2>=3.1            # 模板引擎（產生 C 標頭檔、連結腳本）
+requests>=2.28         # HTTP（下載工具鏈、IP 核心）
+
+# --- 建構與合成工具 ---
+meson>=1.0.0           # 韌體建構系統
+ninja>=1.11            # 建構後端（搭配 meson 使用）
+
+# --- 測試與驗證 ---
+cocotb>=1.8.0          # Python 協同驗證框架（RTL 模擬測試）
+pytest>=7.0            # Python 測試框架
+
+# --- 除錯工具 ---
+litex-boards>=2024.04  # LiteX 官方開發板定義集合（參考用）
+
+# --- 選配：開源 FPGA 工具鏈 ---
+# 以下套件僅在使用開源工具鏈時需要安裝
+# apycula>=0.9          # 高雲 FPGA 開源工具鏈 (Project Apicula)
+# f4pga>=0.1            # Xilinx 7 系列開源工具鏈 (F4PGA/SymbiFlow)

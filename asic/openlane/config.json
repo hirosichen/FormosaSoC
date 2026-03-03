@@ -1,0 +1,99 @@
+{
+    "//": "==========================================================================",
+    "//1": "FormosaSoC OpenLane 2.x ASIC 合成配置檔",
+    "//2": "==========================================================================",
+    "//3": "設計名稱：formosa_soc_top",
+    "//4": "目標製程：SkyWater SKY130A (130nm CMOS)",
+    "//5": "目標頻率：160MHz (週期 6.25ns)",
+    "//6": "==========================================================================",
+
+    "DESIGN_NAME": "formosa_soc_top",
+    "DESIGN_IS_CORE": true,
+
+    "//pdk": "--- 製程設計套件 (PDK) 設定 ---",
+    "PDK": "sky130A",
+    "STD_CELL_LIBRARY": "sky130_fd_sc_hd",
+
+    "//clock": "--- 時鐘設定 ---",
+    "CLOCK_PORT": "clk_in",
+    "CLOCK_NET": "clk_in",
+    "CLOCK_PERIOD": 6.25,
+
+    "//verilog": "--- Verilog RTL 原始碼清單 ---",
+    "VERILOG_FILES": [
+        "dir::../../rtl/top/formosa_soc_top.v",
+        "dir::../../rtl/peripherals/uart/formosa_uart.v",
+        "dir::../../rtl/peripherals/spi/formosa_spi.v",
+        "dir::../../rtl/peripherals/i2c/formosa_i2c.v",
+        "dir::../../rtl/peripherals/gpio/formosa_gpio.v",
+        "dir::../../rtl/peripherals/pwm/formosa_pwm.v",
+        "dir::../../rtl/peripherals/timer/formosa_timer.v",
+        "dir::../../rtl/peripherals/wdt/formosa_wdt.v",
+        "dir::../../rtl/peripherals/irq/formosa_irq_ctrl.v",
+        "dir::../../rtl/peripherals/dma/formosa_dma.v",
+        "dir::../../rtl/peripherals/adc_if/formosa_adc_if.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_wifi_bb.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_ofdm_mod.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_ofdm_demod.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_fft.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_conv_encoder.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_viterbi_decoder.v",
+        "dir::../../rtl/wireless/wifi_baseband/formosa_scrambler.v",
+        "dir::../../rtl/wireless/ble_baseband/formosa_ble_bb.v",
+        "dir::../../rtl/wireless/ble_baseband/formosa_ble_crc.v",
+        "dir::../../rtl/wireless/ble_baseband/formosa_ble_gfsk.v"
+    ],
+
+    "//defines": "--- Verilog 預處理定義 ---",
+    "VERILOG_DEFINES": [
+        "NO_PLL",
+        "SYNTHESIS",
+        "SKY130"
+    ],
+
+    "//floorplan": "--- 晶粒面積與核心區域規劃 ---",
+    "//floorplan_note": "晶粒面積 (die_area): 左下角 (0,0) 到右上角 (3000,3000) 微米",
+    "//core_note": "核心區域需預留邊界給 I/O 焊墊環和電源環",
+    "FP_SIZING": "absolute",
+    "DIE_AREA": "0 0 3000 3000",
+    "CORE_AREA": "50 50 2950 2950",
+
+    "//placement": "--- 佈局 (Placement) 參數 ---",
+    "FP_CORE_UTIL": 45,
+    "PL_TARGET_DENSITY": 0.55,
+    "PL_TIME_DRIVEN": true,
+    "PL_ROUTABILITY_DRIVEN": true,
+    "PL_BASIC_PLACEMENT": false,
+
+    "//cts": "--- 時鐘樹合成 (CTS) 參數 ---",
+    "CTS_CLK_BUFFER_LIST": "sky130_fd_sc_hd__clkbuf_4 sky130_fd_sc_hd__clkbuf_8 sky130_fd_sc_hd__clkbuf_16",
+    "CTS_SINK_CLUSTERING_SIZE": 25,
+    "CTS_SINK_CLUSTERING_MAX_DIAMETER": 50,
+
+    "//routing": "--- 繞線 (Routing) 參數 ---",
+    "ROUTING_CORES": 4,
+    "GRT_ADJUSTMENT": 0.3,
+    "GRT_ALLOW_CONGESTION": false,
+    "GRT_OVERFLOW_ITERS": 50,
+    "DRT_OPT_ITERS": 64,
+
+    "//sta": "--- 靜態時序分析 (STA) 參數 ---",
+    "STA_REPORT_POWER": true,
+    "RUN_CTS": true,
+    "QUIT_ON_TIMING_VIOLATIONS": true,
+    "QUIT_ON_SETUP_VIOLATIONS": true,
+    "QUIT_ON_HOLD_VIOLATIONS": true,
+
+    "//diode": "--- 天線效應修復 ---",
+    "GRT_REPAIR_ANTENNAS": true,
+    "DIODE_INSERTION_STRATEGY": 3,
+
+    "//pins": "--- 腳位配置 ---",
+    "FP_PIN_ORDER_CFG": "dir::pin_order.cfg",
+
+    "//sdc": "--- 時序約束檔 ---",
+    "BASE_SDC_FILE": "dir::../constraints/formosa_soc.sdc",
+
+    "//output": "--- 輸出設定 ---",
+    "TAKE_LAYOUT_SCROT": true
+}

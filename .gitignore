@@ -1,0 +1,51 @@
+# Build outputs
+*.o
+*.elf
+*.bin
+*.hex
+*.bit
+*.svf
+
+# Simulation
+*.vcd
+*.fst
+*.ghw
+sim/waveforms/*.vcd
+sim/waveforms/*.fst
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# LiteX generated
+build/
+*.csv
+
+# FPGA vendor
+*.jed
+*.config
+*.log
+*.rpt
+
+# OpenLane / ASIC
+asic/openlane/runs/
+*.gds
+*.mag
+*.lef
+*.def
+*.spef
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
