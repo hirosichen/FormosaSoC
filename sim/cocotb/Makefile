@@ -33,6 +33,7 @@ IRQ_DIR     = $(PERIPH_DIR)/irq
 DMA_DIR     = $(PERIPH_DIR)/dma
 ADC_DIR     = $(PERIPH_DIR)/adc_if
 TOP_DIR     = $(RTL_DIR)/top
+CORE_DIR    = $(RTL_DIR)/core
 
 # ================================================================
 # cocotb 共用模組路徑
@@ -80,6 +81,9 @@ help:
 	@echo ""
 	@echo "整合測試:"
 	@echo "  make test_bus          - 多周邊匯流排整合測試"
+	@echo ""
+	@echo "SoC 核心測試:"
+	@echo "  make test_soc_core     - CPU 開機 + GPIO + UART 整合測試"
 	@echo ""
 	@echo "選項:"
 	@echo "  SIM=icarus       - 使用 Icarus Verilog (預設)"
@@ -320,6 +324,38 @@ test_bus:
 		VERILOG_SOURCES="$(BUS_VERILOG_SOURCES)" \
 		TOPLEVEL=tb_bus_integration \
 		MODULE=test_bus_integration \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# SoC 核心整合測試 (CPU + 周邊)
+# ================================================================
+SOC_VERILOG_SOURCES = \
+	tb_soc_core.v \
+	$(CORE_DIR)/VexRiscv.v \
+	$(CORE_DIR)/wb_arbiter.v \
+	$(CORE_DIR)/formosa_rom.v \
+	$(CORE_DIR)/formosa_sram.v \
+	$(CORE_DIR)/formosa_sysctrl.v \
+	$(CORE_DIR)/formosa_soc_core.v \
+	$(UART_DIR)/formosa_uart.v \
+	$(GPIO_DIR)/formosa_gpio.v \
+	$(SPI_DIR)/formosa_spi.v \
+	$(I2C_DIR)/formosa_i2c.v \
+	$(PWM_DIR)/formosa_pwm.v \
+	$(TIMER_DIR)/formosa_timer.v \
+	$(WDT_DIR)/formosa_wdt.v \
+	$(IRQ_DIR)/formosa_irq_ctrl.v \
+	$(DMA_DIR)/formosa_dma.v \
+	$(ADC_DIR)/formosa_adc_if.v
+
+.PHONY: test_soc_core
+test_soc_core:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES="$(SOC_VERILOG_SOURCES)" \
+		TOPLEVEL=tb_soc_core \
+		MODULE=test_soc_core \
 		SIM=$(SIM) \
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 

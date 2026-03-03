@@ -105,6 +105,32 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (十一)
+- 整合 VexRiscv RISC-V CPU 核心，完成 SoC 核心互連與 3 項 CPU 開機整合測試全部通過：
+  - **Phase A — SpinalHDL VexRiscv 產生器**:
+    - `tools/vexriscv_gen/build.sbt` — SBT 建構配置 (SpinalHDL 1.10.x)
+    - `tools/vexriscv_gen/project/build.properties` — sbt 版本
+    - `tools/vexriscv_gen/src/main/scala/formosa/GenFormosaVexRiscv.scala` — CPU 產生器 (RV32IMC, Wishbone B4, Machine Mode)
+  - **Phase B — SoC 核心 RTL** (6 檔案):
+    - `rtl/core/VexRiscv.v` — RISC-V CPU 核心 (RV32IMC 簡化實作，支援 Wishbone iBus/dBus, CSR, 中斷)
+    - `rtl/core/wb_arbiter.v` — 3-Master-to-1-Slave Wishbone 仲裁器 (dBus > iBus > DMA 優先權)
+    - `rtl/core/formosa_rom.v` — Boot ROM 32KB ($readmemh 載入韌體)
+    - `rtl/core/formosa_sram.v` — SRAM 64KB (byte-enable 寫入)
+    - `rtl/core/formosa_sysctrl.v` — 系統控制暫存器 (CHIP_ID=0x464D5341, VERSION=v1.0.0, SCRATCH)
+    - `rtl/core/formosa_soc_core.v` — **SoC 核心整合模組** (CPU + 仲裁器 + 位址解碼器 + 13 個 Slave)
+  - **Phase C — cocotb SoC 整合測試** (7 檔案, 3 項測試):
+    - `sim/cocotb/tb_soc_core.v` — SoC 測試台包裝
+    - `sim/cocotb/test_soc_core.py` — CPU boot + GPIO output + UART TX 三項整合測試
+    - `sim/cocotb/firmware/boot_start.S` — 最小 RISC-V 啟動碼
+    - `sim/cocotb/firmware/boot_test.c` — 最小測試韌體 (GPIO LED + UART 'H')
+    - `sim/cocotb/firmware/Makefile` — riscv64 交叉編譯
+    - `sim/cocotb/firmware/link.ld` — 連結器腳本 (ROM 0x00000000 + RAM 0x10000000)
+    - `sim/cocotb/firmware/bin2hex.py` — 二進位轉 $readmemh hex 工具
+  - **位址解碼**: ROM(0x000) / SRAM(0x100) / SYSCTRL(0x200) / IRQ(0x2001) / GPIO~DMA(0x201~0x209)
+  - **中斷接線**: 10 源 → IRQ Ctrl → VexRiscv externalInterrupt
+  - **Makefile 更新**: 新增 `test_soc_core` 目標
+  - **測試結果**: CPU boot 1/1, GPIO output 1/1, UART TX 1/1 = 3 項全部 PASS，原有 96 項測試不受影響
+
 ### 2026-03-03 (十)
 - 新增進階驗證層：壓力測試 30 項 + 匯流排整合測試 6 項 + 形式驗證屬性，總測試量達 96 項全部通過：
   - **Phase 1 — 壓力/邊界測試** (5 檔案, 30 項測試)：
