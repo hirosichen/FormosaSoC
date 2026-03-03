@@ -99,7 +99,7 @@ module formosa_wdt (
     reg [15:0] prescale_cnt;
     wire       prescale_tick = (prescale_cnt == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             prescale_cnt <= 16'h0;
         end else if (reg_ctrl[0]) begin  // WDT 致能
@@ -125,7 +125,7 @@ module formosa_wdt (
     reg feed_request;    // 餵狗請求
     reg early_feed;      // 過早餵狗偵測
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_count   <= 32'hFFFFFFFF;
             wdt_reset   <= 1'b0;
@@ -188,7 +188,7 @@ module formosa_wdt (
     wire [2:0] reg_addr = wb_adr_i[4:2];
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -198,7 +198,7 @@ module formosa_wdt (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_ctrl     <= 32'h0;
             reg_reload   <= 32'hFFFFFFFF;  // 預設最大計數值

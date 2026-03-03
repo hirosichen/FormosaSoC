@@ -139,7 +139,7 @@ module formosa_spi (
     reg        clk_edge;     // 時脈邊緣指示
     wire       clk_tick = (clk_cnt == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             clk_cnt  <= 16'h0;
             clk_edge <= 1'b0;
@@ -178,7 +178,7 @@ module formosa_spi (
 
     // MISO 同步器
     reg miso_sync1, miso_sync2;
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             miso_sync1 <= 1'b0;
             miso_sync2 <= 1'b0;
@@ -188,7 +188,7 @@ module formosa_spi (
         end
     end
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             spi_state    <= SPI_IDLE;
             tx_shift_reg <= 32'h0;
@@ -306,7 +306,7 @@ module formosa_spi (
 
     // TX FIFO 讀取指標更新
     reg tx_rd_pending;
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             tx_rd_pending <= 1'b0;
         else if (spi_state == SPI_IDLE && start_xfer && spi_en && !tx_fifo_empty)
@@ -341,7 +341,7 @@ module formosa_spi (
     wire [2:0] reg_addr = wb_adr_i[4:2];
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -351,7 +351,7 @@ module formosa_spi (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_control  <= 32'h0;
             reg_clk_div  <= 16'd4;     // 預設除頻值

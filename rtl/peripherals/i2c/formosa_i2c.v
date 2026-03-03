@@ -104,7 +104,7 @@ module formosa_i2c (
     reg sda_sync1, sda_sync2;
     reg sda_prev;
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             scl_sync1 <= 1'b1;
             scl_sync2 <= 1'b1;
@@ -132,7 +132,7 @@ module formosa_i2c (
     reg [1:0]  clk_phase;
     reg        phase_tick;
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             clk_counter <= 16'h0;
             clk_phase   <= 2'h0;
@@ -180,7 +180,7 @@ module formosa_i2c (
     reg [2:0]  bit_cnt;        // 位元計數器 (0~7)
     reg        send_ack_val;   // 要送出的 ACK 值
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             i2c_state   <= I2C_IDLE;
             shift_reg   <= 8'h0;
@@ -401,7 +401,7 @@ module formosa_i2c (
     wire [2:0] reg_addr = wb_adr_i[4:2];
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -411,7 +411,7 @@ module formosa_i2c (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_tx_data  <= 8'h0;
             reg_control  <= 32'h0;

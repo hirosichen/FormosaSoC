@@ -95,7 +95,7 @@ module formosa_irq_ctrl (
     // ================================================================
     reg [31:0] irq_sync1, irq_sync2, irq_prev;
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             irq_sync1 <= 32'h0;
             irq_sync2 <= 32'h0;
@@ -178,7 +178,7 @@ module formosa_irq_ctrl (
     wire [3:0] reg_addr = wb_adr_i[5:2];
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -188,7 +188,7 @@ module formosa_irq_ctrl (
     // ================================================================
     // 待處理暫存器更新邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_pending <= 32'h0;
         end else begin
@@ -213,7 +213,7 @@ module formosa_irq_ctrl (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_enable     <= 32'h0;
             reg_active     <= 32'h0;

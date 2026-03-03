@@ -127,7 +127,7 @@ module formosa_adc_if (
     reg [15:0] spi_clk_cnt;
     wire       spi_clk_tick = (spi_clk_cnt == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             spi_clk_cnt <= 16'h0;
         end else if (adc_busy) begin
@@ -167,7 +167,7 @@ module formosa_adc_if (
 
     // MISO 同步器
     reg miso_sync1, miso_sync2;
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             miso_sync1 <= 1'b0;
             miso_sync2 <= 1'b0;
@@ -177,7 +177,7 @@ module formosa_adc_if (
         end
     end
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             adc_state       <= ADC_IDLE;
             adc_busy        <= 1'b0;
@@ -272,7 +272,7 @@ module formosa_adc_if (
     // ================================================================
     wire [9:0] adc_result = spi_rx_shift[9:0]; // 提取 10 位元 ADC 結果
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             fifo_wr_ptr <= 0;
         end else if (conv_done_pulse) begin
@@ -305,7 +305,7 @@ module formosa_adc_if (
     wire [7:0] scan_mask = reg_scan_ctrl[7:0];
     wire [15:0] scan_interval = reg_scan_ctrl[23:8];
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             scan_interval_cnt <= 16'h0;
             scan_ch_idx       <= 3'h0;
@@ -366,7 +366,7 @@ module formosa_adc_if (
     wire [4:0] reg_addr = wb_adr_i[6:2];
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -377,7 +377,7 @@ module formosa_adc_if (
     // 暫存器寫入邏輯
     // ================================================================
     integer k;
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_ctrl      <= 32'h0;
             reg_clk_div   <= 16'd49;  // 預設 SPI 時脈 = 系統時脈/100

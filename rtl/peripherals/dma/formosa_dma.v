@@ -200,7 +200,7 @@ module formosa_dma (
     // ================================================================
     // DMA 傳輸引擎狀態機
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             dma_state   <= DMA_IDLE;
             active_ch   <= 2'd0;
@@ -316,7 +316,7 @@ module formosa_dma (
     wire [7:0] reg_addr = wbs_adr_i[9:2];
 
     // 從端 ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wbs_ack_o <= 1'b0;
         else
@@ -327,7 +327,7 @@ module formosa_dma (
     // 暫存器寫入邏輯
     // ================================================================
     integer j;
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_dma_ctrl <= 32'h0;
             reg_int_en   <= 4'h0;

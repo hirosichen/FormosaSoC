@@ -104,7 +104,7 @@ module formosa_pwm (
     integer i;
 
     // 影子暫存器更新邏輯
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             for (i = 0; i < NUM_CHANNELS; i = i + 1) begin
                 ch_period_shadow[i] <= 16'hFFFF;
@@ -128,7 +128,7 @@ module formosa_pwm (
     end
 
     // PWM 計數器與輸出邏輯
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             for (i = 0; i < NUM_CHANNELS; i = i + 1) begin
                 ch_counter[i]  <= 16'h0;
@@ -224,7 +224,7 @@ module formosa_pwm (
     wire [7:0] reg_addr = wb_adr_i[9:2]; // 較大的位址空間
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -234,7 +234,7 @@ module formosa_pwm (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_global_ctrl <= 32'h0;
             reg_int_en      <= 8'h0;

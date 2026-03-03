@@ -105,6 +105,13 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (七)
+- 修正 9 個周邊控制器 RTL 模組的重置方式：將非同步重置 (`always @(posedge wb_clk_i or posedge wb_rst_i)`) 改為同步重置 (`always @(posedge wb_clk_i)`)，以解決 Icarus Verilog cocotb 模擬時 reset 信號初始 X 導致的 X 傳播問題：
+  - `formosa_gpio.v` (3 處), `formosa_spi.v` (6 處), `formosa_i2c.v` (5 處)
+  - `formosa_timer.v` (7 處), `formosa_pwm.v` (4 處), `formosa_wdt.v` (4 處)
+  - `formosa_irq_ctrl.v` (4 處), `formosa_dma.v` (3 處), `formosa_adc_if.v` (7 處)
+  - `formosa_uart.v` 已於先前修正，本次未變更
+
 ### 2026-03-03 (六)
 - 新增完整技術文件 (`docs/`)，共 10 份繁體中文文件，涵蓋架構、資料手冊與使用指南：
   - `docs/architecture/system_architecture.md` - 系統架構總覽（VexRiscv 核心、Wishbone 匯流排、時脈樹、電源管理、PLIC 中斷架構）

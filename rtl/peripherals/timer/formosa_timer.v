@@ -125,7 +125,7 @@ module formosa_timer (
     // ================================================================
     reg [1:0] cap_sync1, cap_sync2, cap_prev;
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             cap_sync1 <= 2'b0;
             cap_sync2 <= 2'b0;
@@ -166,7 +166,7 @@ module formosa_timer (
     // 預除頻器
     assign ch0_prescale_tick = (ch0_prescale_cnt == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             ch0_prescale_cnt <= 16'h0;
         end else if (ch0_enable && !ch0_stopped) begin
@@ -180,7 +180,7 @@ module formosa_timer (
     end
 
     // 通道 0 計數器與事件邏輯
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             ch0_count   <= 32'h0;
             ch0_capture <= 32'h0;
@@ -268,7 +268,7 @@ module formosa_timer (
 
     assign ch1_prescale_tick = (ch1_prescale_cnt == 16'h0);
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             ch1_prescale_cnt <= 16'h0;
         end else if (ch1_enable && !ch1_stopped) begin
@@ -281,7 +281,7 @@ module formosa_timer (
         end
     end
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             ch1_count   <= 32'h0;
             ch1_capture <= 32'h0;
@@ -355,7 +355,7 @@ module formosa_timer (
     wire [4:0] reg_addr_sel = wb_adr_i[6:2];
 
     // ACK 產生
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -365,7 +365,7 @@ module formosa_timer (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             reg_global_ctrl <= 32'h0;
             reg_int_en      <= 8'h0;

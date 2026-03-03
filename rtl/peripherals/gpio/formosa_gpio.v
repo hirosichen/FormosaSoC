@@ -78,7 +78,7 @@ module formosa_gpio (
     reg [31:0] gpio_in_sync2;
     reg [31:0] gpio_in_prev;  // 前一拍的輸入值，用於邊緣偵測
 
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             gpio_in_sync1 <= 32'h0;
             gpio_in_sync2 <= 32'h0;
@@ -138,7 +138,7 @@ module formosa_gpio (
     // Wishbone ACK 產生
     // 單週期確認：每個有效匯流排存取在下一拍產生 ACK
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i)
             wb_ack_o <= 1'b0;
         else
@@ -148,7 +148,7 @@ module formosa_gpio (
     // ================================================================
     // 暫存器寫入邏輯
     // ================================================================
-    always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    always @(posedge wb_clk_i) begin
         if (wb_rst_i) begin
             // 重置時所有暫存器歸零
             reg_data_out <= 32'h0;
