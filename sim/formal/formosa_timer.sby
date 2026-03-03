@@ -1,0 +1,23 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 30
+cover: mode cover
+cover: depth 30
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal ../../rtl/peripherals/timer/formosa_timer.v
+read -formal wb_protocol.sv
+read -formal timer_props.sv
+prep -top formosa_timer
+
+[files]
+../../rtl/peripherals/timer/formosa_timer.v
+wb_protocol.sv
+timer_props.sv

@@ -1,0 +1,23 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 30
+cover: mode cover
+cover: depth 30
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal ../../rtl/peripherals/wdt/formosa_wdt.v
+read -formal wb_protocol.sv
+read -formal wdt_props.sv
+prep -top formosa_wdt
+
+[files]
+../../rtl/peripherals/wdt/formosa_wdt.v
+wb_protocol.sv
+wdt_props.sv

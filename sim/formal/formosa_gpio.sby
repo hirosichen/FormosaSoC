@@ -1,0 +1,23 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 30
+cover: mode cover
+cover: depth 30
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal ../../rtl/peripherals/gpio/formosa_gpio.v
+read -formal wb_protocol.sv
+read -formal gpio_props.sv
+prep -top formosa_gpio
+
+[files]
+../../rtl/peripherals/gpio/formosa_gpio.v
+wb_protocol.sv
+gpio_props.sv

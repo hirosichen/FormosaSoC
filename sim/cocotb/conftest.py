@@ -192,6 +192,77 @@ class WishboneMasterDMA:
         return data
 
 
+class WishboneMasterBus:
+    """
+    匯流排整合測試專用 Wishbone 主端驅動器
+
+    與 WishboneMaster 類似，但直接使用 DUT 的頂層 Wishbone 信號，
+    適用於 tb_bus_integration 等多周邊整合測試台。
+    地址直接傳入（含周邊基址），由測試台內部的地址解碼器路由。
+
+    用法:
+        wb = WishboneMasterBus(dut, dut.wb_clk_i)
+        await wb.write(0x00100010, 433)   # 寫入 UART BAUD_DIV
+        data = await wb.read(0x00200004)  # 讀取 GPIO DATA_IN
+    """
+
+    def __init__(self, dut, clk):
+        """
+        初始化匯流排主端驅動器
+
+        參數:
+            dut - cocotb DUT 物件
+            clk - 時脈信號參考
+        """
+        self.dut = dut
+        self.clk = clk
+        self.adr = dut.wb_adr_i
+        self.dat_i = dut.wb_dat_i
+        self.dat_o = dut.wb_dat_o
+        self.we = dut.wb_we_i
+        self.sel = dut.wb_sel_i
+        self.stb = dut.wb_stb_i
+        self.cyc = dut.wb_cyc_i
+        self.ack = dut.wb_ack_o
+
+    async def write(self, address, data, sel=0xF):
+        """Wishbone 寫入操作（地址含周邊基址）"""
+        await RisingEdge(self.clk)
+        self.adr.value = address
+        self.dat_i.value = data
+        self.we.value = 1
+        self.sel.value = sel
+        self.stb.value = 1
+        self.cyc.value = 1
+        while True:
+            await RisingEdge(self.clk)
+            if self.ack.value == 1:
+                break
+        self.stb.value = 0
+        self.cyc.value = 0
+        self.we.value = 0
+        await RisingEdge(self.clk)
+
+    async def read(self, address, sel=0xF):
+        """Wishbone 讀取操作（地址含周邊基址）"""
+        await RisingEdge(self.clk)
+        self.adr.value = address
+        self.dat_i.value = 0
+        self.we.value = 0
+        self.sel.value = sel
+        self.stb.value = 1
+        self.cyc.value = 1
+        while True:
+            await RisingEdge(self.clk)
+            if self.ack.value == 1:
+                break
+        data = int(self.dat_o.value)
+        self.stb.value = 0
+        self.cyc.value = 0
+        await RisingEdge(self.clk)
+        return data
+
+
 async def setup_dut_clock(dut, period_ns=20):
     """
     啟動 DUT 時脈產生器

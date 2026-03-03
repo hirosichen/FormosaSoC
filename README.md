@@ -105,6 +105,25 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (十)
+- 新增進階驗證層：壓力測試 30 項 + 匯流排整合測試 6 項 + 形式驗證屬性，總測試量達 96 項全部通過：
+  - **Phase 1 — 壓力/邊界測試** (5 檔案, 30 項測試)：
+    - `sim/cocotb/test_uart_stress.py` — TX FIFO 滿載、RX 溢位、背靠背連續傳輸、Frame Error 偵測、迴路壓力、鮑率切換
+    - `sim/cocotb/test_irq_stress.py` — 32 源同時觸發、快速脈衝邊緣鎖存、動態優先順序改變、準位移除行為、巢狀中斷、全等級遮罩
+    - `sim/cocotb/test_dma_stress.py` — 多通道仲裁、慢速 slave 延遲、循環回繞邊界、傳輸中寫入 ch_ctrl、零長度傳輸、最大傳輸次數
+    - `sim/cocotb/test_wdt_stress.py` — 視窗邊界餵狗、提前餵狗偵測、錯誤金鑰、Prescaler 邊界值、雙重超時、鎖定保護
+    - `sim/cocotb/test_timer_stress.py` — 雙通道同時 match、reload=0 行為、計數中改 reload、one-shot 只觸發一次、捕獲邊緣、最大計數溢位
+  - **Phase 2 — 多周邊匯流排整合測試** (2 檔案, 6 項測試)：
+    - `sim/cocotb/tb_bus_integration.v` — Wishbone 互連測試台 (UART+GPIO+Timer+IRQ+DMA)，地址解碼器 (wb_adr_i[23:20])
+    - `sim/cocotb/test_bus_integration.py` — 依序存取地址解碼、Timer→IRQ 整合、back-to-back 跨周邊切換、多源 IRQ 仲裁、GPIO 讀回、未映射地址處理
+    - `sim/cocotb/conftest.py` 新增 `WishboneMasterBus` 類別支援整合測試
+  - **Phase 3 — 形式驗證 (SymbiYosys)** (14 檔案)：
+    - `sim/formal/wb_protocol.sv` — 通用 Wishbone B4 協議檢查器 (ACK 需 STB、無鎖死、ACK 單週期)
+    - `sim/formal/uart_props.sv`, `irq_props.sv`, `wdt_props.sv`, `dma_props.sv`, `timer_props.sv`, `gpio_props.sv` — 各模組 SVA 屬性
+    - 6 個 `.sby` 配置檔 + `sim/formal/Makefile` (prove + cover 目標)
+  - **Makefile 更新**: 新增 test_uart_stress, test_irq_stress, test_dma_stress, test_wdt_stress, test_timer_stress, test_stress_all, test_bus, test_complete 目標
+  - **測試結果**: 60 項單元測試 + 30 項壓力測試 + 6 項整合測試 = 96 項全部 PASS
+
 ### 2026-03-03 (九)
 - 補齊 WDT、IRQ Controller、DMA、ADC Interface 四個模組的 cocotb 測試，達成全部 60 項測試通過 (10 模組 × 6 測試):
   - **新增測試檔案**:

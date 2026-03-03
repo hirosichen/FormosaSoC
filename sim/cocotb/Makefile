@@ -70,6 +70,17 @@ help:
 	@echo "  make test_adc    - 執行 ADC  模組測試"
 	@echo "  make test_all    - 執行所有模組測試"
 	@echo ""
+	@echo "壓力測試:"
+	@echo "  make test_uart_stress  - UART 壓力測試"
+	@echo "  make test_irq_stress   - IRQ 壓力測試"
+	@echo "  make test_dma_stress   - DMA 壓力測試"
+	@echo "  make test_wdt_stress   - WDT 壓力測試"
+	@echo "  make test_timer_stress - Timer 壓力測試"
+	@echo "  make test_stress_all   - 執行所有壓力測試"
+	@echo ""
+	@echo "整合測試:"
+	@echo "  make test_bus          - 多周邊匯流排整合測試"
+	@echo ""
 	@echo "選項:"
 	@echo "  SIM=icarus       - 使用 Icarus Verilog (預設)"
 	@echo "  SIM=verilator    - 使用 Verilator"
@@ -209,12 +220,116 @@ test_adc:
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 
 # ================================================================
-# 執行所有測試
+# 執行所有單元測試
 # ================================================================
 .PHONY: test_all
 test_all: test_uart test_gpio test_spi test_timer test_i2c test_pwm test_wdt test_irq test_dma test_adc
 	@echo "============================================"
-	@echo " 所有測試執行完畢"
+	@echo " 所有單元測試執行完畢 (60 項)"
+	@echo "============================================"
+
+# ================================================================
+# UART 壓力測試
+# ================================================================
+.PHONY: test_uart_stress
+test_uart_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(UART_DIR)/formosa_uart.v \
+		TOPLEVEL=formosa_uart \
+		MODULE=test_uart_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# IRQ 壓力測試
+# ================================================================
+.PHONY: test_irq_stress
+test_irq_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(IRQ_DIR)/formosa_irq_ctrl.v \
+		TOPLEVEL=formosa_irq_ctrl \
+		MODULE=test_irq_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# DMA 壓力測試
+# ================================================================
+.PHONY: test_dma_stress
+test_dma_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(DMA_DIR)/formosa_dma.v \
+		TOPLEVEL=formosa_dma \
+		MODULE=test_dma_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# WDT 壓力測試
+# ================================================================
+.PHONY: test_wdt_stress
+test_wdt_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(WDT_DIR)/formosa_wdt.v \
+		TOPLEVEL=formosa_wdt \
+		MODULE=test_wdt_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# Timer 壓力測試
+# ================================================================
+.PHONY: test_timer_stress
+test_timer_stress:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(TIMER_DIR)/formosa_timer.v \
+		TOPLEVEL=formosa_timer \
+		MODULE=test_timer_stress \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# 執行所有壓力測試
+# ================================================================
+.PHONY: test_stress_all
+test_stress_all: test_uart_stress test_irq_stress test_dma_stress test_wdt_stress test_timer_stress
+	@echo "============================================"
+	@echo " 所有壓力測試執行完畢 (30 項)"
+	@echo "============================================"
+
+# ================================================================
+# 多周邊匯流排整合測試
+# ================================================================
+BUS_VERILOG_SOURCES = \
+	tb_bus_integration.v \
+	$(UART_DIR)/formosa_uart.v \
+	$(GPIO_DIR)/formosa_gpio.v \
+	$(TIMER_DIR)/formosa_timer.v \
+	$(IRQ_DIR)/formosa_irq_ctrl.v \
+	$(DMA_DIR)/formosa_dma.v
+
+.PHONY: test_bus
+test_bus:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES="$(BUS_VERILOG_SOURCES)" \
+		TOPLEVEL=tb_bus_integration \
+		MODULE=test_bus_integration \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+# ================================================================
+# 執行全部測試（單元 + 壓力 + 整合）
+# ================================================================
+.PHONY: test_complete
+test_complete: test_all test_stress_all test_bus
+	@echo "============================================"
+	@echo " 全部測試執行完畢 (60 + 30 + 6 = 96 項)"
 	@echo "============================================"
 
 # ================================================================
