@@ -6,7 +6,7 @@
 #       make cover_all   - 執行所有模組的覆蓋率檢查
 # ===========================================================================
 
-MODULES = uart irq_ctrl wdt dma timer gpio
+MODULES = uart irq_ctrl wdt dma timer gpio spi i2c pwm adc_if
 
 # ================================================================
 # 個別模組 prove 目標
@@ -35,6 +35,22 @@ prove_timer:
 prove_gpio:
 	sby -f formosa_gpio.sby prove
 
+.PHONY: prove_spi
+prove_spi:
+	sby -f formosa_spi.sby prove
+
+.PHONY: prove_i2c
+prove_i2c:
+	sby -f formosa_i2c.sby prove
+
+.PHONY: prove_pwm
+prove_pwm:
+	sby -f formosa_pwm.sby prove
+
+.PHONY: prove_adc_if
+prove_adc_if:
+	sby -f formosa_adc_if.sby prove
+
 # ================================================================
 # 個別模組 cover 目標
 # ================================================================
@@ -62,17 +78,33 @@ cover_timer:
 cover_gpio:
 	sby -f formosa_gpio.sby cover
 
+.PHONY: cover_spi
+cover_spi:
+	sby -f formosa_spi.sby cover
+
+.PHONY: cover_i2c
+cover_i2c:
+	sby -f formosa_i2c.sby cover
+
+.PHONY: cover_pwm
+cover_pwm:
+	sby -f formosa_pwm.sby cover
+
+.PHONY: cover_adc_if
+cover_adc_if:
+	sby -f formosa_adc_if.sby cover
+
 # ================================================================
 # 聚合目標
 # ================================================================
 .PHONY: prove_all
-prove_all: prove_uart prove_irq_ctrl prove_wdt prove_dma prove_timer prove_gpio
+prove_all: prove_uart prove_irq_ctrl prove_wdt prove_dma prove_timer prove_gpio prove_spi prove_i2c prove_pwm prove_adc_if
 	@echo "============================================"
 	@echo " 所有模組形式驗證完畢"
 	@echo "============================================"
 
 .PHONY: cover_all
-cover_all: cover_uart cover_irq_ctrl cover_wdt cover_dma cover_timer cover_gpio
+cover_all: cover_uart cover_irq_ctrl cover_wdt cover_dma cover_timer cover_gpio cover_spi cover_i2c cover_pwm cover_adc_if
 	@echo "============================================"
 	@echo " 所有模組覆蓋率檢查完畢"
 	@echo "============================================"
@@ -91,6 +123,10 @@ clean:
 	rm -rf formosa_dma_prove formosa_dma_cover
 	rm -rf formosa_timer_prove formosa_timer_cover
 	rm -rf formosa_gpio_prove formosa_gpio_cover
+	rm -rf formosa_spi_prove formosa_spi_cover
+	rm -rf formosa_i2c_prove formosa_i2c_cover
+	rm -rf formosa_pwm_prove formosa_pwm_cover
+	rm -rf formosa_adc_if_prove formosa_adc_if_cover
 
 # ================================================================
 # 說明
@@ -113,6 +149,10 @@ help:
 	@echo "  make prove_dma       - DMA 形式驗證"
 	@echo "  make prove_timer     - Timer 形式驗證"
 	@echo "  make prove_gpio      - GPIO 形式驗證"
-	@echo "  make prove_all       - 所有模組形式驗證"
+	@echo "  make prove_spi       - SPI 形式驗證"
+	@echo "  make prove_i2c       - I2C 形式驗證"
+	@echo "  make prove_pwm       - PWM 形式驗證"
+	@echo "  make prove_adc_if    - ADC 形式驗證"
+	@echo "  make prove_all       - 所有模組形式驗證 (10 模組)"
 	@echo "  make cover_all       - 所有模組覆蓋率檢查"
 	@echo "  make clean           - 清除驗證產出"

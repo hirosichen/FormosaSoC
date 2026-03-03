@@ -1,0 +1,25 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 10
+cover: mode cover
+cover: depth 10
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal formosa_pwm.v
+read -sv -formal wb_protocol.sv
+read -sv -formal pwm_props.sv
+read -sv -formal formal_pwm_top.sv
+prep -top formal_pwm_top
+
+[files]
+../../rtl/peripherals/pwm/formosa_pwm.v
+wb_protocol.sv
+pwm_props.sv
+formal_pwm_top.sv

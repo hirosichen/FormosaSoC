@@ -105,6 +105,37 @@ MIT License
 
 ## 更新紀錄
 
+### 2026-03-03 (十四)
+- 完成進階驗證：約束隨機測試 6 項、Verilator 覆蓋率分析、Yosys 合成、形式驗證屬性，總測試量達 165 項 (含 Verilator 覆蓋率 60 項)：
+  - **約束隨機測試** (`sim/cocotb/test_constrained_random.py`, 6 項測試)：
+    - `test_random_gpio_sequences` — 隨機 GPIO 方向/輸出/中斷序列 20 輪
+    - `test_random_register_fuzz` — GPIO 暫存器模糊測試 50 輪
+    - `test_random_uart_config` — UART 隨機鮑率/控制/中斷配置 20 輪
+    - `test_random_timer_config` — Timer 隨機重載/比較/預除頻配置 15 輪
+    - `test_random_irq_patterns` — IRQ 隨機致能/觸發/優先順序 15 輪
+    - `test_random_dma_transfers` — DMA 隨機通道/位址/傳輸配置 10 輪
+  - **Verilator 程式碼覆蓋率分析** (10 模組全部通過)：
+    - 升級 Verilator 5.020 → 5.036 (從源碼編譯安裝)
+    - 使用 `--coverage` 旗標執行所有 60 項單元測試產生覆蓋率資料
+    - 覆蓋率結果 (行 + 訊號切換)：
+      - GPIO 47.6% | UART 56.8% | SPI 67.6% | I2C 56.7% | Timer 45.3%
+      - PWM 49.1% | WDT 58.3% | IRQ 58.3% | DMA 33.7% | ADC 70.9%
+      - **整體覆蓋率: 54.3% (996/1835 覆蓋點)**
+    - 覆蓋率報告: `sim/coverage/report/` (Verilator 標註原始碼)
+    - 覆蓋率資料: `sim/coverage/data/` (各模組 + 合併 .dat)
+  - **Yosys 合成** (10 模組全部通過)：
+    - 合成腳本: `asic/scripts/synth_peripherals.ys`
+    - 閘級網表: `asic/formosa_peripherals_synth.v`
+    - 合成報告: `asic/peripherals_synth_report.json`
+    - 各模組面積 (cell 數): GPIO 1,799 | UART 1,934 | SPI 2,505 | I2C 1,110 | Timer 3,538 | PWM 8,275 | WDT 1,351 | IRQ 2,462 | DMA 9,959 | ADC 3,152 | **合計 ~36,085 cells**
+  - **形式驗證 (SymbiYosys)** (屬性/包裝器完成，執行受 RTL 限制)：
+    - 11 個 SVA 屬性檔改寫為 Yosys 相容即時斷言 (`always @(posedge clk) assert(...)`)
+    - 10 個形式驗證包裝器頂層 (`sim/formal/formal_*_top.sv`)
+    - 10 個 `.sby` 配置檔更新
+    - 限制：RTL 使用多 always 塊驅動同一暫存器，Yosys SMT2 後端報「multiple drivers」錯誤，需 RTL 重構
+  - **Makefile 更新**: 新增 test_random_all (6 項)，test_complete 擴充為 159 項
+  - **新增檔案**: `sim/coverage/run_coverage.sh`, `sim/coverage/parse_coverage.py`
+
 ### 2026-03-03 (十三)
 - 新增 42 項測試，達成 153 項全部通過完整測試覆蓋：
   - **5 組周邊壓力測試** (30 項新增):

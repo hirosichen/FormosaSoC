@@ -1,5 +1,5 @@
 // ===========================================================================
-// FormosaSoC - formosa_wdt 形式驗證屬性
+// FormosaSoC - formosa_wdt 形式驗證屬性 (Yosys 相容)
 // ===========================================================================
 
 module wdt_props (
@@ -25,26 +25,22 @@ module wdt_props (
     );
 
     // ================================================================
-    // WDT-P1: 鎖定狀態下寫入 RELOAD 無效
-    // CTRL[3] = locked
-    // 追蹤鎖定狀態
+    // WDT-P1: 鎖定狀態追蹤
     // ================================================================
     reg is_locked;
     reg [31:0] last_reload;
 
     always @(posedge clk) begin
         if (rst) begin
-            is_locked <= 1;  // 上電後預設鎖定
+            is_locked <= 1;
             last_reload <= 0;
         end else begin
-            // 追蹤 KEY 暫存器寫入 (addr=0x10)
             if (stb && cyc && we && adr[4:2] == 3'h4 && ack) begin
-                if (dat_i == 32'h5A5AA5A5)  // UNLOCK
+                if (dat_i == 32'h5A5AA5A5)
                     is_locked <= 0;
-                else if (dat_i == 32'h12345678)  // LOCK
+                else if (dat_i == 32'h12345678)
                     is_locked <= 1;
             end
-            // 追蹤 RELOAD 暫存器寫入 (addr=0x04)
             if (stb && cyc && we && adr[4:2] == 3'h1 && ack && !is_locked) begin
                 last_reload <= dat_i;
             end
@@ -54,48 +50,38 @@ module wdt_props (
     // ================================================================
     // WDT-P2: 鎖定後讀取 CTRL 的 locked 位元應為 1
     // ================================================================
-    property p_locked_bit_reflects_state;
-        @(posedge clk) disable iff (rst)
-        (stb && cyc && !we && adr[4:2] == 3'h0 && ack && is_locked) |->
-        dat_o[3] == 1;
-    endproperty
-    assert property (p_locked_bit_reflects_state)
-        else $error("WDT-P2 FAIL: locked state not reflected in CTRL[3]");
+    always @(posedge clk) begin
+        if (!rst && stb && cyc && !we && adr[4:2] == 3'h0 && ack && is_locked) begin
+            assert (dat_o[3] == 1);  // WDT-P2: locked bit reflects state
+        end
+    end
 
     // ================================================================
     // WDT-P3: 重置後 wdt_reset 應為低
     // ================================================================
-    property p_reset_wdt_output;
-        @(posedge clk)
-        $fell(rst) |=> wdt_reset == 0;
-    endproperty
-    assert property (p_reset_wdt_output)
-        else $error("WDT-P3 FAIL: wdt_reset not 0 after system reset");
+    reg prev_rst;
+    always @(posedge clk) prev_rst <= rst;
+
+    always @(posedge clk) begin
+        if (prev_rst && !rst) begin
+            assert (wdt_reset == 0);  // WDT-P3: wdt_reset 0 after reset
+        end
+    end
 
     // ================================================================
     // WDT-P4: KEY 暫存器不可讀（讀取應回傳 0）
     // ================================================================
-    property p_key_not_readable;
-        @(posedge clk) disable iff (rst)
-        (stb && cyc && !we && adr[4:2] == 3'h4 && ack) |->
-        dat_o == 32'h0;
-    endproperty
-    assert property (p_key_not_readable)
-        else $error("WDT-P4 FAIL: KEY register should read as 0");
-
-    // ================================================================
-    // WDT-P5: ACK 單週期脈衝
-    // ================================================================
-    property p_ack_pulse;
-        @(posedge clk) disable iff (rst)
-        ack |=> !ack;
-    endproperty
-    assert property (p_ack_pulse)
-        else $error("WDT-P5 FAIL: ACK not single-cycle");
+    always @(posedge clk) begin
+        if (!rst && stb && cyc && !we && adr[4:2] == 3'h4 && ack) begin
+            assert (dat_o == 32'h0);  // WDT-P4: KEY reads as 0
+        end
+    end
 
     // 覆蓋率
-    cover property (@(posedge clk) wdt_reset); // WDT 超時觸發重置
-    cover property (@(posedge clk) stb && cyc && we && adr[4:2] == 3'h4 && dat_i == 32'hDEADBEEF && ack); // 餵狗
+    always @(posedge clk) begin
+        cover (wdt_reset);
+        cover (stb && cyc && we && adr[4:2] == 3'h4 && dat_i == 32'hDEADBEEF && ack);  // 餵狗
+    end
 
 `endif
 

@@ -1,0 +1,467 @@
+//      // verilator_coverage annotation
+        // ===========================================================================
+        // FormosaSoC - 台灣自主研發 IoT SoC
+        // 模組名稱：formosa_timer - 計時器/計數器
+        // 功能描述：32位元雙通道計時器，支援上/下計數、自動重載、比較匹配與捕捉模式
+        // 匯流排介面：Wishbone B4 從端介面
+        // 作者：FormosaSoC 開發團隊
+        // ===========================================================================
+        //
+        // 暫存器映射表 (Register Map):
+        // 偏移量  | 名稱           | 說明
+        // --------|---------------|----------------------------------
+        // 0x00    | GLOBAL_CTRL   | 全域控制暫存器
+        // 0x04    | INT_EN        | 中斷致能暫存器
+        // 0x08    | INT_STAT      | 中斷狀態暫存器 (寫1清除)
+        // 0x0C    | (保留)        |
+        // --- 通道 0 ---
+        // 0x10    | CH0_CTRL      | 通道 0 控制暫存器
+        // 0x14    | CH0_COUNT     | 通道 0 計數值
+        // 0x18    | CH0_RELOAD    | 通道 0 自動重載值
+        // 0x1C    | CH0_COMPARE   | 通道 0 比較匹配值
+        // 0x20    | CH0_CAPTURE   | 通道 0 捕捉值 (唯讀)
+        // 0x24    | CH0_PRESCALE  | 通道 0 預除頻值
+        // --- 通道 1 ---
+        // 0x30    | CH1_CTRL      | 通道 1 控制暫存器
+        // 0x34    | CH1_COUNT     | 通道 1 計數值
+        // 0x38    | CH1_RELOAD    | 通道 1 自動重載值
+        // 0x3C    | CH1_COMPARE   | 通道 1 比較匹配值
+        // 0x40    | CH1_CAPTURE   | 通道 1 捕捉值 (唯讀)
+        // 0x44    | CH1_PRESCALE  | 通道 1 預除頻值
+        //
+        // CHn_CTRL 暫存器位元定義:
+        //   [0]    ENABLE     - 通道致能
+        //   [1]    DIR        - 計數方向 (0=向上, 1=向下)
+        //   [2]    AUTO_RELOAD- 自動重載致能
+        //   [3]    ONE_SHOT   - 單次模式
+        //   [4]    CAPTURE_EN - 捕捉模式致能
+        //   [6:5]  CAP_EDGE   - 捕捉邊緣 (00=上升, 01=下降, 10=雙邊緣)
+        //
+        // INT_EN / INT_STAT 位元定義:
+        //   [0] CH0_OVF     - 通道 0 溢出/下溢中斷
+        //   [1] CH0_CMP     - 通道 0 比較匹配中斷
+        //   [2] CH0_CAP     - 通道 0 捕捉事件中斷
+        //   [4] CH1_OVF     - 通道 1 溢出/下溢中斷
+        //   [5] CH1_CMP     - 通道 1 比較匹配中斷
+        //   [6] CH1_CAP     - 通道 1 捕捉事件中斷
+        // ===========================================================================
+        
+        `timescale 1ns / 1ps
+        
+        module formosa_timer (
+            // ---- 系統信號 ----
+ 000977     input  wire        wb_clk_i,    // Wishbone 時脈
+ 000012     input  wire        wb_rst_i,    // Wishbone 重置 (高態有效)
+        
+            // ---- Wishbone 從端介面 ----
+~000027     input  wire [31:0] wb_adr_i,    // 位址匯流排
+~000022     input  wire [31:0] wb_dat_i,    // 寫入資料匯流排
+~000014     output reg  [31:0] wb_dat_o,    // 讀取資料匯流排
+ 000060     input  wire        wb_we_i,     // 寫入致能
+ 000011     input  wire [3:0]  wb_sel_i,    // 位元組選擇
+ 000088     input  wire        wb_stb_i,    // 選通信號
+ 000088     input  wire        wb_cyc_i,    // 匯流排週期
+ 000088     output reg         wb_ack_o,    // 確認信號
+        
+            // ---- 外部捕捉輸入 ----
+%000000     input  wire [1:0]  capture_in,  // 捕捉輸入 (每通道一條)
+        
+            // ---- 計時器輸出 ----
+~000034     output wire [1:0]  timer_out,   // 計時器比較匹配輸出 (可作 PWM 使用)
+        
+            // ---- 中斷輸出 ----
+ 000010     output wire        irq           // 中斷請求輸出
+        );
+        
+            // ================================================================
+            // 暫存器位址定義 (使用位元組偏移除以4)
+            // ================================================================
+            localparam ADDR_GLOBAL_CTRL = 5'h00;  // 0x00
+            localparam ADDR_INT_EN      = 5'h01;  // 0x04
+            localparam ADDR_INT_STAT    = 5'h02;  // 0x08
+            // 通道 0
+            localparam ADDR_CH0_CTRL    = 5'h04;  // 0x10
+            localparam ADDR_CH0_COUNT   = 5'h05;  // 0x14
+            localparam ADDR_CH0_RELOAD  = 5'h06;  // 0x18
+            localparam ADDR_CH0_COMPARE = 5'h07;  // 0x1C
+            localparam ADDR_CH0_CAPTURE = 5'h08;  // 0x20
+            localparam ADDR_CH0_PRESCALE= 5'h09;  // 0x24
+            // 通道 1
+            localparam ADDR_CH1_CTRL    = 5'h0C;  // 0x30
+            localparam ADDR_CH1_COUNT   = 5'h0D;  // 0x34
+            localparam ADDR_CH1_RELOAD  = 5'h0E;  // 0x38
+            localparam ADDR_CH1_COMPARE = 5'h0F;  // 0x3C
+            localparam ADDR_CH1_CAPTURE = 5'h10;  // 0x40
+            localparam ADDR_CH1_PRESCALE= 5'h11;  // 0x44
+        
+            // ================================================================
+            // 內部暫存器宣告
+            // ================================================================
+%000000     reg [31:0] reg_global_ctrl;
+%000006     reg [7:0]  reg_int_en;
+~000010     reg [7:0]  reg_int_stat;
+        
+            // 通道 0 暫存器
+~000010     reg [31:0] ch0_ctrl;
+~000220     reg [31:0] ch0_count;
+%000004     reg [31:0] ch0_reload;
+%000003     reg [31:0] ch0_compare;
+%000000     reg [31:0] ch0_capture;
+%000003     reg [15:0] ch0_prescale;
+~000029     reg [15:0] ch0_prescale_cnt;
+%000002     reg        ch0_stopped;     // 單次模式停止旗標
+        
+            // 通道 1 暫存器
+%000000     reg [31:0] ch1_ctrl;
+%000000     reg [31:0] ch1_count;
+%000001     reg [31:0] ch1_reload;
+%000001     reg [31:0] ch1_compare;
+%000000     reg [31:0] ch1_capture;
+%000000     reg [15:0] ch1_prescale;
+%000000     reg [15:0] ch1_prescale_cnt;
+%000000     reg        ch1_stopped;
+        
+            // ================================================================
+            // 捕捉輸入同步器
+            // ================================================================
+%000000     reg [1:0] cap_sync1, cap_sync2, cap_prev;
+        
+ 000489     always @(posedge wb_clk_i) begin
+ 000428         if (wb_rst_i) begin
+ 000061             cap_sync1 <= 2'b0;
+ 000061             cap_sync2 <= 2'b0;
+ 000061             cap_prev  <= 2'b0;
+ 000428         end else begin
+ 000428             cap_sync1 <= capture_in;
+ 000428             cap_sync2 <= cap_sync1;
+ 000428             cap_prev  <= cap_sync2;
+                end
+            end
+        
+            // 邊緣偵測
+%000000     wire [1:0] cap_rising  = cap_sync2 & ~cap_prev;
+%000000     wire [1:0] cap_falling = ~cap_sync2 & cap_prev;
+        
+            // ================================================================
+            // 比較匹配輸出
+            // ================================================================
+            assign timer_out[0] = (ch0_count == ch0_compare) && ch0_ctrl[0];
+            assign timer_out[1] = (ch1_count == ch1_compare) && ch1_ctrl[0];
+        
+            // ================================================================
+            // 中斷輸出
+            // ================================================================
+            assign irq = |(reg_int_stat & reg_int_en);
+        
+            // ================================================================
+            // 通道 0 計時器邏輯
+            // ================================================================
+ 000010     wire ch0_enable     = ch0_ctrl[0];
+%000006     wire ch0_dir        = ch0_ctrl[1];       // 0=上, 1=下
+%000004     wire ch0_auto_reload= ch0_ctrl[2];
+%000002     wire ch0_one_shot   = ch0_ctrl[3];
+%000000     wire ch0_capture_en = ch0_ctrl[4];
+%000000     wire [1:0] ch0_cap_edge = ch0_ctrl[6:5];
+ 000016     wire ch0_prescale_tick;
+        
+            // 預除頻器
+            assign ch0_prescale_tick = (ch0_prescale_cnt == 16'h0);
+        
+ 000489     always @(posedge wb_clk_i) begin
+ 000061         if (wb_rst_i) begin
+ 000061             ch0_prescale_cnt <= 16'h0;
+ 000236         end else if (ch0_enable && !ch0_stopped) begin
+ 000216             if (ch0_prescale_cnt == 16'h0)
+ 000216                 ch0_prescale_cnt <= ch0_prescale;
+                    else
+ 000020                 ch0_prescale_cnt <= ch0_prescale_cnt - 1'b1;
+ 000192         end else begin
+ 000192             ch0_prescale_cnt <= ch0_prescale;
+                end
+            end
+        
+            // 中斷事件旗標（由計數器邏輯設定，由 WB 寫入邏輯統一處理）
+~000034     reg ch0_ovf_event, ch0_cmp_event, ch0_cap_event;
+%000000     reg ch1_ovf_event, ch1_cmp_event, ch1_cap_event;
+        
+            // 通道 0 計數器與事件邏輯
+ 000489     always @(posedge wb_clk_i) begin
+ 000428         if (wb_rst_i) begin
+ 000061             ch0_count     <= 32'h0;
+ 000061             ch0_capture   <= 32'h0;
+ 000061             ch0_stopped   <= 1'b0;
+ 000061             ch0_ovf_event <= 1'b0;
+ 000061             ch0_cmp_event <= 1'b0;
+ 000061             ch0_cap_event <= 1'b0;
+ 000428         end else begin
+                    // 預設清除單拍事件旗標
+ 000428             ch0_ovf_event <= 1'b0;
+ 000428             ch0_cmp_event <= 1'b0;
+ 000428             ch0_cap_event <= 1'b0;
+        
+                    // ---- 計數器邏輯 ----
+ 000216             if (ch0_enable && !ch0_stopped && ch0_prescale_tick) begin
+ 000174                 if (!ch0_dir) begin
+                            // 向上計數
+~000042                     if (ch0_count == 32'hFFFFFFFF) begin
+                                // 溢出
+%000000                         ch0_ovf_event <= 1'b1;
+%000000                         if (ch0_auto_reload)
+%000000                             ch0_count <= ch0_reload;
+                                else
+%000000                             ch0_count <= 32'h0;
+%000000                         if (ch0_one_shot)
+%000000                             ch0_stopped <= 1'b1;
+ 000042                     end else begin
+ 000042                         ch0_count <= ch0_count + 1'b1;
+                            end
+ 000174                 end else begin
+                            // 向下計數
+ 000159                     if (ch0_count == 32'h0) begin
+                                // 下溢
+ 000015                         ch0_ovf_event <= 1'b1;
+~000014                         if (ch0_auto_reload)
+ 000014                             ch0_count <= ch0_reload;
+                                else
+%000001                             ch0_count <= 32'hFFFFFFFF;
+~000014                         if (ch0_one_shot)
+%000001                             ch0_stopped <= 1'b1;
+ 000159                     end else begin
+ 000159                         ch0_count <= ch0_count - 1'b1;
+                            end
+                        end
+        
+                        // 比較匹配偵測
+ 000199                 if (ch0_count == ch0_compare)
+ 000017                     ch0_cmp_event <= 1'b1;
+                    end
+        
+                    // ---- 捕捉邏輯 ----
+~000428             if (ch0_capture_en) begin
+%000000                 case (ch0_cap_edge)
+%000000                     2'b00: begin // 上升邊緣捕捉
+%000000                         if (cap_rising[0]) begin
+%000000                             ch0_capture <= ch0_count;
+%000000                             ch0_cap_event <= 1'b1;
+                                end
+                            end
+%000000                     2'b01: begin // 下降邊緣捕捉
+%000000                         if (cap_falling[0]) begin
+%000000                             ch0_capture <= ch0_count;
+%000000                             ch0_cap_event <= 1'b1;
+                                end
+                            end
+%000000                     2'b10: begin // 雙邊緣捕捉
+%000000                         if (cap_rising[0] || cap_falling[0]) begin
+%000000                             ch0_capture <= ch0_count;
+%000000                             ch0_cap_event <= 1'b1;
+                                end
+                            end
+%000000                     default: ;
+                        endcase
+                    end
+        
+                    // ---- 重置 stopped 旗標 (當重新致能時) ----
+ 000290             if (!ch0_enable)
+ 000138                 ch0_stopped <= 1'b0;
+                end
+            end
+        
+            // ================================================================
+            // 通道 1 計時器邏輯 (與通道 0 相同架構)
+            // ================================================================
+%000000     wire ch1_enable     = ch1_ctrl[0];
+%000000     wire ch1_dir        = ch1_ctrl[1];
+%000000     wire ch1_auto_reload= ch1_ctrl[2];
+%000000     wire ch1_one_shot   = ch1_ctrl[3];
+%000000     wire ch1_capture_en = ch1_ctrl[4];
+%000000     wire [1:0] ch1_cap_edge = ch1_ctrl[6:5];
+%000001     wire ch1_prescale_tick;
+        
+            assign ch1_prescale_tick = (ch1_prescale_cnt == 16'h0);
+        
+ 000489     always @(posedge wb_clk_i) begin
+ 000061         if (wb_rst_i) begin
+ 000061             ch1_prescale_cnt <= 16'h0;
+~000428         end else if (ch1_enable && !ch1_stopped) begin
+%000000             if (ch1_prescale_cnt == 16'h0)
+%000000                 ch1_prescale_cnt <= ch1_prescale;
+                    else
+%000000                 ch1_prescale_cnt <= ch1_prescale_cnt - 1'b1;
+ 000428         end else begin
+ 000428             ch1_prescale_cnt <= ch1_prescale;
+                end
+            end
+        
+ 000489     always @(posedge wb_clk_i) begin
+ 000428         if (wb_rst_i) begin
+ 000061             ch1_count     <= 32'h0;
+ 000061             ch1_capture   <= 32'h0;
+ 000061             ch1_stopped   <= 1'b0;
+ 000061             ch1_ovf_event <= 1'b0;
+ 000061             ch1_cmp_event <= 1'b0;
+ 000061             ch1_cap_event <= 1'b0;
+ 000428         end else begin
+ 000428             ch1_ovf_event <= 1'b0;
+ 000428             ch1_cmp_event <= 1'b0;
+ 000428             ch1_cap_event <= 1'b0;
+        
+~000428             if (ch1_enable && !ch1_stopped && ch1_prescale_tick) begin
+%000000                 if (!ch1_dir) begin
+%000000                     if (ch1_count == 32'hFFFFFFFF) begin
+%000000                         ch1_ovf_event <= 1'b1;
+%000000                         if (ch1_auto_reload)
+%000000                             ch1_count <= ch1_reload;
+                                else
+%000000                             ch1_count <= 32'h0;
+%000000                         if (ch1_one_shot)
+%000000                             ch1_stopped <= 1'b1;
+%000000                     end else begin
+%000000                         ch1_count <= ch1_count + 1'b1;
+                            end
+%000000                 end else begin
+%000000                     if (ch1_count == 32'h0) begin
+%000000                         ch1_ovf_event <= 1'b1;
+%000000                         if (ch1_auto_reload)
+%000000                             ch1_count <= ch1_reload;
+                                else
+%000000                             ch1_count <= 32'hFFFFFFFF;
+%000000                         if (ch1_one_shot)
+%000000                             ch1_stopped <= 1'b1;
+%000000                     end else begin
+%000000                         ch1_count <= ch1_count - 1'b1;
+                            end
+                        end
+        
+%000000                 if (ch1_count == ch1_compare)
+%000000                     ch1_cmp_event <= 1'b1;
+                    end
+        
+                    // 捕捉邏輯
+~000428             if (ch1_capture_en) begin
+%000000                 case (ch1_cap_edge)
+%000000                     2'b00: begin
+%000000                         if (cap_rising[1]) begin
+%000000                             ch1_capture <= ch1_count;
+%000000                             ch1_cap_event <= 1'b1;
+                                end
+                            end
+%000000                     2'b01: begin
+%000000                         if (cap_falling[1]) begin
+%000000                             ch1_capture <= ch1_count;
+%000000                             ch1_cap_event <= 1'b1;
+                                end
+                            end
+%000000                     2'b10: begin
+%000000                         if (cap_rising[1] || cap_falling[1]) begin
+%000000                             ch1_capture <= ch1_count;
+%000000                             ch1_cap_event <= 1'b1;
+                                end
+                            end
+%000000                     default: ;
+                        endcase
+                    end
+        
+~000428             if (!ch1_enable)
+ 000428                 ch1_stopped <= 1'b0;
+                end
+            end
+        
+            // ================================================================
+            // Wishbone 匯流排介面
+            // ================================================================
+ 000088     wire wb_valid = wb_stb_i & wb_cyc_i;
+~000027     wire [4:0] reg_addr_sel = wb_adr_i[6:2];
+        
+            // ACK 產生
+ 000489     always @(posedge wb_clk_i) begin
+ 000428         if (wb_rst_i)
+ 000061             wb_ack_o <= 1'b0;
+                else
+ 000428             wb_ack_o <= wb_valid & ~wb_ack_o;
+            end
+        
+            // ================================================================
+            // 暫存器寫入邏輯與中斷狀態統一管理
+            // ================================================================
+ 000489     always @(posedge wb_clk_i) begin
+ 000428         if (wb_rst_i) begin
+ 000061             reg_global_ctrl <= 32'h0;
+ 000061             reg_int_en      <= 8'h0;
+ 000061             reg_int_stat    <= 8'h0;
+ 000061             ch0_ctrl        <= 32'h0;
+ 000061             ch0_reload      <= 32'h0;
+ 000061             ch0_compare     <= 32'h0;
+ 000061             ch0_prescale    <= 16'h0;
+ 000061             ch1_ctrl        <= 32'h0;
+ 000061             ch1_reload      <= 32'h0;
+ 000061             ch1_compare     <= 32'h0;
+ 000061             ch1_prescale    <= 16'h0;
+ 000428         end else begin
+                    // 從計數器事件旗標更新中斷狀態（鎖存）
+ 000414             if (ch0_ovf_event) reg_int_stat[0] <= 1'b1;
+ 000412             if (ch0_cmp_event) reg_int_stat[1] <= 1'b1;
+~000428             if (ch0_cap_event) reg_int_stat[2] <= 1'b1;
+~000428             if (ch1_ovf_event) reg_int_stat[4] <= 1'b1;
+~000428             if (ch1_cmp_event) reg_int_stat[5] <= 1'b1;
+~000428             if (ch1_cap_event) reg_int_stat[6] <= 1'b1;
+        
+ 000398             if (wb_valid & wb_we_i & ~wb_ack_o) begin
+ 000030                 case (reg_addr_sel)
+%000000                     ADDR_GLOBAL_CTRL: reg_global_ctrl <= wb_dat_i;
+%000004                     ADDR_INT_EN:      reg_int_en  <= wb_dat_i[7:0];
+%000001                     ADDR_INT_STAT:    reg_int_stat <= reg_int_stat & ~wb_dat_i[7:0];
+        
+                            // 通道 0
+%000005                     ADDR_CH0_CTRL:    ch0_ctrl    <= wb_dat_i;
+%000005                     ADDR_CH0_COUNT:   ch0_count   <= wb_dat_i;
+%000005                     ADDR_CH0_RELOAD:  ch0_reload  <= wb_dat_i;
+%000002                     ADDR_CH0_COMPARE: ch0_compare <= wb_dat_i;
+%000006                     ADDR_CH0_PRESCALE:ch0_prescale<= wb_dat_i[15:0];
+        
+                            // 通道 1
+%000000                     ADDR_CH1_CTRL:    ch1_ctrl    <= wb_dat_i;
+%000000                     ADDR_CH1_COUNT:   ch1_count   <= wb_dat_i;
+%000001                     ADDR_CH1_RELOAD:  ch1_reload  <= wb_dat_i;
+%000001                     ADDR_CH1_COMPARE: ch1_compare <= wb_dat_i;
+%000000                     ADDR_CH1_PRESCALE:ch1_prescale<= wb_dat_i[15:0];
+        
+%000000                     default: ;
+                        endcase
+                    end
+                end
+            end
+        
+            // ================================================================
+            // 暫存器讀取邏輯（暫存器輸出，確保 ACK 時資料穩定）
+            // ================================================================
+ 000489     always @(posedge wb_clk_i) begin
+ 000061         if (wb_rst_i) begin
+ 000061             wb_dat_o <= 32'h0;
+ 000384         end else if (wb_valid & ~wb_ack_o) begin
+ 000044             case (reg_addr_sel)
+%000000                 ADDR_GLOBAL_CTRL: wb_dat_o <= reg_global_ctrl;
+%000004                 ADDR_INT_EN:      wb_dat_o <= {24'h0, reg_int_en};
+%000005                 ADDR_INT_STAT:    wb_dat_o <= {24'h0, reg_int_stat};
+        
+%000005                 ADDR_CH0_CTRL:    wb_dat_o <= ch0_ctrl;
+ 000010                 ADDR_CH0_COUNT:   wb_dat_o <= ch0_count;
+%000006                 ADDR_CH0_RELOAD:  wb_dat_o <= ch0_reload;
+%000003                 ADDR_CH0_COMPARE: wb_dat_o <= ch0_compare;
+%000000                 ADDR_CH0_CAPTURE: wb_dat_o <= ch0_capture;
+%000007                 ADDR_CH0_PRESCALE:wb_dat_o <= {16'h0, ch0_prescale};
+        
+%000000                 ADDR_CH1_CTRL:    wb_dat_o <= ch1_ctrl;
+%000000                 ADDR_CH1_COUNT:   wb_dat_o <= ch1_count;
+%000002                 ADDR_CH1_RELOAD:  wb_dat_o <= ch1_reload;
+%000002                 ADDR_CH1_COMPARE: wb_dat_o <= ch1_compare;
+%000000                 ADDR_CH1_CAPTURE: wb_dat_o <= ch1_capture;
+%000000                 ADDR_CH1_PRESCALE:wb_dat_o <= {16'h0, ch1_prescale};
+        
+%000000                 default:          wb_dat_o <= 32'h0;
+                    endcase
+                end
+            end
+        
+        endmodule
+        

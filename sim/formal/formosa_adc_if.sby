@@ -1,0 +1,25 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 10
+cover: mode cover
+cover: depth 10
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal formosa_adc_if.v
+read -sv -formal wb_protocol.sv
+read -sv -formal adc_props.sv
+read -sv -formal formal_adc_if_top.sv
+prep -top formal_adc_if_top
+
+[files]
+../../rtl/peripherals/adc_if/formosa_adc_if.v
+wb_protocol.sv
+adc_props.sv
+formal_adc_if_top.sv

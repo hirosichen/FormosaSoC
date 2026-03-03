@@ -1,5 +1,5 @@
 // ===========================================================================
-// FormosaSoC - formosa_dma 形式驗證屬性
+// FormosaSoC - formosa_dma 形式驗證屬性 (Yosys 相容)
 // ===========================================================================
 
 module dma_props (
@@ -34,7 +34,6 @@ module dma_props (
 
     // ================================================================
     // DMA-P1: Master bus 交易必終止
-    // 當 WBM CYC 為高時，必須在 N 週期內完成（收到 ACK 或放棄）
     // ================================================================
     reg [5:0] wbm_wait_cnt;
 
@@ -48,15 +47,14 @@ module dma_props (
         end
     end
 
-    property p_wbm_no_deadlock;
-        @(posedge clk) disable iff (rst)
-        (wbm_cyc && wbm_stb) |-> (wbm_wait_cnt < 32);
-    endproperty
-    assert property (p_wbm_no_deadlock)
-        else $error("DMA-P1 FAIL: Master bus deadlock");
+    always @(posedge clk) begin
+        if (!rst && wbm_cyc && wbm_stb) begin
+            assert (wbm_wait_cnt < 32);  // DMA-P1: No master bus deadlock
+        end
+    end
 
     // ================================================================
-    // DMA-P2: CYC 必須伴隨 STB（WBM 端不可只有 CYC 無 STB 持續太久）
+    // DMA-P2: CYC 不可只有 CYC 無 STB 持續太久
     // ================================================================
     reg [3:0] cyc_no_stb_cnt;
 
@@ -70,47 +68,43 @@ module dma_props (
         end
     end
 
-    property p_cyc_with_stb;
-        @(posedge clk) disable iff (rst)
-        wbm_cyc |-> (cyc_no_stb_cnt < 8);
-    endproperty
-    assert property (p_cyc_with_stb)
-        else $error("DMA-P2 FAIL: CYC asserted too long without STB");
+    always @(posedge clk) begin
+        if (!rst && wbm_cyc) begin
+            assert (cyc_no_stb_cnt < 8);  // DMA-P2: CYC with STB
+        end
+    end
 
     // ================================================================
     // DMA-P3: 重置後 master bus 應閒置
     // ================================================================
-    property p_reset_master_idle;
-        @(posedge clk)
-        $fell(rst) |=> (!wbm_cyc && !wbm_stb);
-    endproperty
-    assert property (p_reset_master_idle)
-        else $error("DMA-P3 FAIL: Master bus not idle after reset");
+    reg prev_rst;
+    always @(posedge clk) prev_rst <= rst;
+
+    always @(posedge clk) begin
+        if (prev_rst && !rst) begin
+            assert (!wbm_cyc && !wbm_stb);  // DMA-P3: Master idle after reset
+        end
+    end
 
     // ================================================================
-    // DMA-P4: 從端 ACK 單週期
+    // DMA-P4: 從端 ACK 單週期 (已由 wb_protocol_checker 檢查)
     // ================================================================
-    property p_wbs_ack_pulse;
-        @(posedge clk) disable iff (rst)
-        wbs_ack |=> !wbs_ack;
-    endproperty
-    assert property (p_wbs_ack_pulse)
-        else $error("DMA-P4 FAIL: Slave ACK not single-cycle");
 
     // ================================================================
     // DMA-P5: 重置後 IRQ 應為低
     // ================================================================
-    property p_reset_irq;
-        @(posedge clk)
-        $fell(rst) |=> irq == 0;
-    endproperty
-    assert property (p_reset_irq)
-        else $error("DMA-P5 FAIL: IRQ not 0 after reset");
+    always @(posedge clk) begin
+        if (prev_rst && !rst) begin
+            assert (irq == 0);  // DMA-P5: IRQ 0 after reset
+        end
+    end
 
     // 覆蓋率
-    cover property (@(posedge clk) wbm_cyc && wbm_stb && wbm_we && wbm_ack);  // Master 寫入
-    cover property (@(posedge clk) wbm_cyc && wbm_stb && !wbm_we && wbm_ack); // Master 讀取
-    cover property (@(posedge clk) irq);  // 傳輸完成中斷
+    always @(posedge clk) begin
+        cover (wbm_cyc && wbm_stb && wbm_we && wbm_ack);   // Master 寫入
+        cover (wbm_cyc && wbm_stb && !wbm_we && wbm_ack);  // Master 讀取
+        cover (irq);                                          // 傳輸完成中斷
+    end
 
 `endif
 

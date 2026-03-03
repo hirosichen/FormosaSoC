@@ -1,8 +1,8 @@
 // ===========================================================================
-// FormosaSoC - formosa_uart 形式驗證屬性 (Yosys 相容)
+// FormosaSoC - formosa_i2c 形式驗證屬性 (Yosys 相容)
 // ===========================================================================
 
-module uart_props (
+module i2c_props (
     input wire        clk,
     input wire        rst,
     input wire        stb,
@@ -24,33 +24,25 @@ module uart_props (
     );
 
     // ================================================================
-    // UART-P1: TX FIFO 不可同時 FULL 與 EMPTY
-    // STATUS[0]=TX_EMPTY, STATUS[1]=TX_FULL
+    // I2C-P1: ACK 單週期 (已由 wb_protocol_checker 檢查)
     // ================================================================
-    always @(posedge clk) begin
-        if (!rst && stb && cyc && !we && adr[4:2] == 3'h2 && ack) begin
-            assert (!(dat_o[0] && dat_o[1]));  // TX_EMPTY & TX_FULL 不可同時為 1
-        end
-    end
 
     // ================================================================
-    // UART-P2: RX FIFO 不可同時 FULL 與 EMPTY
-    // STATUS[2]=RX_EMPTY, STATUS[3]=RX_FULL
+    // I2C-P2: BUSY 與 DONE 不可同時為 1
+    // STATUS[0]=BUSY, STATUS[3]=DONE
     // ================================================================
     always @(posedge clk) begin
-        if (!rst && stb && cyc && !we && adr[4:2] == 3'h2 && ack) begin
-            assert (!(dat_o[2] && dat_o[3]));  // RX_EMPTY & RX_FULL 不可同時為 1
+        if (!rst && stb && cyc && !we && adr[4:2] == 3'h3 && ack) begin
+            assert (!(dat_o[0] && dat_o[3]));  // I2C-P2: BUSY & DONE mutually exclusive
         end
     end
-
-    // ================================================================
-    // UART-P3: ACK 必須為單週期 (已由 wb_protocol_checker 檢查)
-    // ================================================================
 
     // 覆蓋率
     always @(posedge clk) begin
-        cover (stb && cyc && we && adr[4:2] == 3'h0 && ack);   // TX 寫入
-        cover (stb && cyc && !we && adr[4:2] == 3'h1 && ack);  // RX 讀取
+        cover (stb && cyc && we && adr[4:2] == 3'h0 && ack);   // TX_DATA 寫入
+        cover (stb && cyc && !we && adr[4:2] == 3'h1 && ack);  // RX_DATA 讀取
+        cover (stb && cyc && we && adr[4:2] == 3'h5 && ack);   // CMD 寫入
+        cover (stb && cyc && !we && adr[4:2] == 3'h3 && ack);  // STATUS 讀取
     end
 
 `endif

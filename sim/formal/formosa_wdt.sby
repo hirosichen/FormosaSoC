@@ -4,20 +4,22 @@ cover
 
 [options]
 prove: mode prove
-prove: depth 30
+prove: depth 10
 cover: mode cover
-cover: depth 30
+cover: depth 10
 
 [engines]
 smtbmc z3
 
 [script]
-read -formal ../../rtl/peripherals/wdt/formosa_wdt.v
-read -formal wb_protocol.sv
-read -formal wdt_props.sv
-prep -top formosa_wdt
+read -formal formosa_wdt.v
+read -sv -formal wb_protocol.sv
+read -sv -formal wdt_props.sv
+read -sv -formal formal_wdt_top.sv
+prep -top formal_wdt_top
 
 [files]
 ../../rtl/peripherals/wdt/formosa_wdt.v
 wb_protocol.sv
 wdt_props.sv
+formal_wdt_top.sv

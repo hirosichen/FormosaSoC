@@ -1,0 +1,152 @@
+========================================================================
+ FormosaSoC 程式碼覆蓋率詳細報告
+========================================================================
+
+模組         檔案                        覆蓋點        總點數        覆蓋率       
+------------------------------------------------------------------------
+GPIO       formosa_gpio.v            50         105        47.6%     
+UART       formosa_uart.v            129        227        56.8%     
+SPI        formosa_spi.v             121        179        67.6%     
+I2C        formosa_i2c.v             127        224        56.7%     
+Timer      formosa_timer.v           101        223        45.3%     
+PWM        formosa_pwm.v             82         167        49.1%     
+WDT        formosa_wdt.v             63         108        58.3%     
+IRQ        formosa_irq_ctrl.v        63         108        58.3%     
+DMA        formosa_dma.v             82         243        33.7%     
+ADC        formosa_adc_if.v          178        251        70.9%     
+------------------------------------------------------------------------
+合計                                   996        1835       54.3%     
+
+========================================================================
+ 未覆蓋程式碼行 (前 10 行)
+========================================================================
+
+--- GPIO (formosa_gpio.v) ---
+  L  42: input  wire [31:0] gpio_in,     // GPIO 輸入腳位
+  L  43: output wire [31:0] gpio_out,    // GPIO 輸出腳位
+  L  44: output wire [31:0] gpio_oe,     // GPIO 輸出致能 (三態控制)
+  L  47: output wire        irq           // 中斷請求輸出
+  L  66: reg [31:0] reg_data_out;   // 資料輸出暫存器
+  L  67: reg [31:0] reg_dir;        // 方向暫存器：1=輸出, 0=輸入
+  L  68: reg [31:0] reg_out_en;     // 輸出致能暫存器
+  L  69: reg [31:0] reg_int_en;     // 中斷致能暫存器
+  L  71: reg [31:0] reg_int_type;   // 中斷類型：1=邊緣觸發, 0=準位觸發
+  L  72: reg [31:0] reg_int_pol;    // 中斷極性
+  ... 還有 45 行未覆蓋
+
+--- UART (formosa_uart.v) ---
+  L  68: output wire        irq           // 中斷請求輸出
+  L  91: reg [31:0] reg_control;    // 控制暫存器
+  L  93: reg [3:0]  reg_int_en;     // 中斷致能暫存器
+  L  97: reg        overrun_flag;   // 溢出錯誤旗標
+  L  98: reg        frame_err_flag; // 框架錯誤旗標
+  L 103: reg [7:0]  tx_fifo [0:FIFO_DEPTH-1];  // TX FIFO 記憶體
+  L 105: reg [FIFO_AW:0] tx_rd_ptr;            // TX 讀取指標
+  L 106: wire       tx_fifo_empty;              // TX FIFO 空旗標
+  L 107: wire       tx_fifo_full;               // TX FIFO 滿旗標
+  L 118: reg [7:0]  rx_fifo [0:FIFO_DEPTH-1];  // RX FIFO 記憶體
+  ... 還有 88 行未覆蓋
+
+--- SPI (formosa_spi.v) ---
+  L  62: input  wire        spi_miso,    // SPI 主入從出
+  L  66: output wire        irq           // 中斷請求輸出
+  L  93: reg [3:0]  reg_int_en;    // 中斷致能暫存器
+  L  99: reg [31:0] tx_fifo [0:FIFO_DEPTH-1];
+  L 102: wire tx_fifo_full  = (tx_wr_ptr[FIFO_AW] != tx_rd_ptr[FIFO_AW]) &&
+  L 108: reg [31:0] rx_fifo [0:FIFO_DEPTH-1];
+  L 111: wire rx_fifo_full  = (rx_wr_ptr[FIFO_AW] != rx_rd_ptr[FIFO_AW]) &&
+  L 118: wire       cpol       = reg_control[1];   // 時脈極性
+  L 119: wire       cpha       = reg_control[2];   // 時脈相位
+  L 120: wire [1:0] xfer_size  = reg_control[4:3]; // 傳輸大小
+  ... 還有 48 行未覆蓋
+
+--- I2C (formosa_i2c.v) ---
+  L  60: input  wire        i2c_scl_i,   // SCL 輸入 (讀取實際線路狀態，用於時脈延展)
+  L  63: input  wire        i2c_sda_i,   // SDA 輸入
+  L  68: output wire        irq           // 中斷請求輸出
+  L  86: reg [7:0]  reg_tx_data;    // 傳送資料暫存器
+  L  87: reg [7:0]  reg_rx_data;    // 接收資料暫存器
+  L  91: reg [3:0]  reg_int_en;    // 中斷致能暫存器
+  L  96: reg        ack_recv;       // 收到的 ACK/NACK 值
+  L  97: reg        arb_lost;       // 仲裁失敗旗標
+  L  99: reg        bus_err;        // 匯流排錯誤旗標
+  L 104: reg scl_sync1, scl_sync2;
+  ... 還有 87 行未覆蓋
+
+--- Timer (formosa_timer.v) ---
+  L  67: input  wire [1:0]  capture_in,  // 捕捉輸入 (每通道一條)
+  L 100: reg [31:0] reg_global_ctrl;
+  L 101: reg [7:0]  reg_int_en;
+  L 107: reg [31:0] ch0_reload;
+  L 108: reg [31:0] ch0_compare;
+  L 109: reg [31:0] ch0_capture;
+  L 110: reg [15:0] ch0_prescale;
+  L 112: reg        ch0_stopped;     // 單次模式停止旗標
+  L 115: reg [31:0] ch1_ctrl;
+  L 116: reg [31:0] ch1_count;
+  ... 還有 112 行未覆蓋
+
+--- PWM (formosa_pwm.v) ---
+  L  55: output wire        irq           // 中斷請求輸出
+  L  67: reg [7:0]  reg_int_en;        // 中斷致能 (每通道一位元)
+  L  73: reg [31:0] ch_ctrl    [0:NUM_CHANNELS-1];  // 通道控制暫存器
+  L  76: reg [15:0] ch_deadtime[0:NUM_CHANNELS-1];  // 通道死區時間值
+  L  86: reg [7:0]  ch_prescale [0:NUM_CHANNELS-1];  // 各通道預除頻計數器
+  L  87: reg [7:0]  ch_dir      ;                     // 計數方向 (中心對齊用)
+  L  94: wire [7:0] ch_pol     = reg_global_ctrl[15:8];   // 各通道極性
+  L  95: wire       sync_en    = reg_global_ctrl[16];     // 同步更新致能
+  L 123: ch_period_shadow[i] <= ch_period[i];
+  L 124: ch_duty_shadow[i]   <= ch_duty[i];
+  ... 還有 75 行未覆蓋
+
+--- WDT (formosa_wdt.v) ---
+  L  63: output wire        irq           // 中斷請求輸出
+  L  88: reg [31:0] reg_ctrl;       // 控制暫存器
+  L  91: reg [31:0] reg_window;     // 視窗下限值
+  L  92: reg [1:0]  reg_status;     // 狀態暫存器
+  L  93: reg [1:0]  reg_int_en;     // 中斷致能
+  L  94: reg [15:0] reg_prescale;   // 預除頻值
+  L 100: reg [15:0] prescale_cnt;
+  L 101: wire       prescale_tick = (prescale_cnt == 16'h0);
+  L 110: prescale_cnt <= prescale_cnt - 1'b1;
+  L 119: wire wdt_en  = reg_ctrl[0];  // 看門狗致能
+  ... 還有 35 行未覆蓋
+
+--- IRQ (formosa_irq_ctrl.v) ---
+  L  55: input  wire [31:0] irq_sources, // 32 個中斷源輸入
+  L  59: output wire [4:0]  irq_id       // 目前最高優先順序中斷編號
+  L  82: reg [31:0] reg_enable;      // 中斷致能遮罩
+  L  83: reg [31:0] reg_pending;     // 中斷待處理
+  L  84: reg [31:0] reg_active;      // 目前處理中的中斷
+  L  85: reg [31:0] reg_trigger;     // 觸發類型 (1=邊緣, 0=準位)
+  L  86: reg [3:0]  reg_level_mask;  // 優先順序等級遮罩
+  L  89: reg [15:0] prio_0_7;        // 中斷 0~7 的優先順序
+  L  90: reg [15:0] prio_8_15;       // 中斷 8~15 的優先順序
+  L  91: reg [15:0] prio_16_23;      // 中斷 16~23 的優先順序
+  ... 還有 35 行未覆蓋
+
+--- DMA (formosa_dma.v) ---
+  L  57: output reg  [31:0] wbm_adr_o,   // 主端位址
+  L  58: output reg  [31:0] wbm_dat_o,   // 主端寫入資料
+  L  59: input  wire [31:0] wbm_dat_i,   // 主端讀取資料
+  L  61: output reg  [3:0]  wbm_sel_o,   // 主端位元組選擇
+  L  67: input  wire [3:0]  dma_req,     // DMA 請求 (每通道一條)
+  L  71: output wire        irq           // 中斷請求輸出
+  L  91: reg [31:0] ch_ctrl     [0:NUM_CHANNELS-1];  // 通道控制
+  L  94: reg [31:0] ch_xfer_cnt [0:NUM_CHANNELS-1];  // 傳輸次數
+  L  95: reg [31:0] ch_curr_src [0:NUM_CHANNELS-1];  // 目前來源位址
+  L  96: reg [31:0] ch_curr_dst [0:NUM_CHANNELS-1];  // 目前目的位址
+  ... 還有 151 行未覆蓋
+
+--- ADC (formosa_adc_if.v) ---
+  L  76: output wire        irq           // 中斷請求輸出
+  L 105: reg [4:0]  reg_int_en;      // 中斷致能
+  L 106: reg [4:0]  reg_int_stat;    // 中斷狀態
+  L 107: reg [31:0] reg_scan_ctrl;   // 掃描控制
+  L 110: reg [9:0]  ch_data [0:7];
+  L 112: reg [9:0]  ch_thresh_hi [0:7];
+  L 113: reg [9:0]  ch_thresh_lo [0:7];
+  L 119: reg [15:0] result_fifo [0:FIFO_DEPTH-1];
+  L 122: wire fifo_full  = (fifo_wr_ptr[FIFO_AW] != fifo_rd_ptr[FIFO_AW]) &&
+  L 165: reg        conv_sgl_diff;    // 單端/差動選擇
+  ... 還有 63 行未覆蓋

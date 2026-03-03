@@ -1,5 +1,5 @@
 // ===========================================================================
-// FormosaSoC - formosa_irq_ctrl 形式驗證屬性
+// FormosaSoC - formosa_irq_ctrl 形式驗證屬性 (Yosys 相容)
 // ===========================================================================
 
 module irq_props (
@@ -27,29 +27,17 @@ module irq_props (
     );
 
     // ================================================================
-    // IRQ-P1: pending & enable 不為零 ↔ irq_to_cpu == 1
-    // 當有致能且待處理的中斷時，irq_to_cpu 必須為高
+    // IRQ-P1: 讀取 PENDING 暫存器不為零時 irq_to_cpu 應為高
     // ================================================================
-    // 注意：這依賴 level_mask 設定，假設 level_mask 全開
-    // 此屬性在不考慮 level_mask 的簡化場景下驗證
-    property p_irq_to_cpu_correctness;
-        @(posedge clk) disable iff (rst)
-        // 讀取 PENDING 暫存器 (addr=0x04) 時
-        (stb && cyc && !we && adr[5:2] == 4'h1 && ack && dat_o != 32'h0) |->
-        irq_to_cpu;
-    endproperty
-    assert property (p_irq_to_cpu_correctness)
-        else $error("IRQ-P1 FAIL: pending != 0 but irq_to_cpu is 0");
+    always @(posedge clk) begin
+        if (!rst && stb && cyc && !we && adr[5:2] == 4'h1 && ack && dat_o != 32'h0) begin
+            assert (irq_to_cpu);  // IRQ-P1: pending != 0 implies irq_to_cpu
+        end
+    end
 
     // ================================================================
-    // IRQ-P2: irq_to_cpu 為 0 時，pending 讀取應為 0 或 level_mask 遮罩
+    // IRQ-P2: ACK 寫入追蹤
     // ================================================================
-    // 簡化版：irq_to_cpu==0 且讀取 PENDING 時，應符合遮罩邏輯
-
-    // ================================================================
-    // IRQ-P3: ACK 寫入後對應 pending 位元應被清除（邊緣觸發模式）
-    // ================================================================
-    // 此屬性需追蹤 ACK 暫存器寫入事件
     reg ack_write_pending;
     reg [31:0] ack_write_mask;
 
@@ -58,7 +46,6 @@ module irq_props (
             ack_write_pending <= 0;
             ack_write_mask <= 0;
         end else if (stb && cyc && we && adr[5:2] == 4'h4 && ack) begin
-            // 寫入 IRQ_ACK (addr=0x10)
             ack_write_pending <= 1;
             ack_write_mask <= dat_i;
         end else begin
@@ -67,28 +54,31 @@ module irq_props (
     end
 
     // ================================================================
-    // IRQ-P4: 重置後 irq_to_cpu 應為 0
+    // IRQ-P3: 重置後 irq_to_cpu 應為 0
     // ================================================================
-    property p_reset_no_irq;
-        @(posedge clk)
-        $fell(rst) |=> irq_to_cpu == 0;
-    endproperty
-    assert property (p_reset_no_irq)
-        else $error("IRQ-P4 FAIL: irq_to_cpu not 0 after reset");
+    reg prev_rst;
+    always @(posedge clk) prev_rst <= rst;
+
+    always @(posedge clk) begin
+        if (prev_rst && !rst) begin
+            assert (irq_to_cpu == 0);  // IRQ-P3: irq_to_cpu 0 after reset
+        end
+    end
 
     // ================================================================
-    // IRQ-P5: irq_id 有效範圍（0~31）
+    // IRQ-P4: irq_id 有效範圍（0~31）— 5-bit 天生滿足
     // ================================================================
-    property p_irq_id_range;
-        @(posedge clk) disable iff (rst)
-        irq_to_cpu |-> (irq_id < 5'd32);
-    endproperty
-    assert property (p_irq_id_range)
-        else $error("IRQ-P5 FAIL: irq_id out of range");
+    always @(posedge clk) begin
+        if (!rst && irq_to_cpu) begin
+            assert (irq_id < 5'd32);  // IRQ-P4: irq_id in range
+        end
+    end
 
     // 覆蓋率
-    cover property (@(posedge clk) irq_to_cpu && irq_id == 5'd0);
-    cover property (@(posedge clk) irq_sources != 0 && !irq_to_cpu); // 有源但被遮罩
+    always @(posedge clk) begin
+        cover (irq_to_cpu && irq_id == 5'd0);
+        cover (irq_sources != 0 && !irq_to_cpu);  // 有源但被遮罩
+    end
 
 `endif
 

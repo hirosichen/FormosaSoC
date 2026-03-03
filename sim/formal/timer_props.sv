@@ -1,5 +1,5 @@
 // ===========================================================================
-// FormosaSoC - formosa_timer 形式驗證屬性
+// FormosaSoC - formosa_timer 形式驗證屬性 (Yosys 相容)
 // ===========================================================================
 
 module timer_props (
@@ -26,38 +26,32 @@ module timer_props (
     );
 
     // ================================================================
-    // TIMER-P1: ACK 單週期脈衝
+    // TIMER-P1: ACK 單週期 (已由 wb_protocol_checker 檢查)
     // ================================================================
-    property p_ack_pulse;
-        @(posedge clk) disable iff (rst)
-        ack |=> !ack;
-    endproperty
-    assert property (p_ack_pulse)
-        else $error("TIMER-P1 FAIL: ACK not single-cycle");
 
     // ================================================================
     // TIMER-P2: 重置後 IRQ 應為低
     // ================================================================
-    property p_reset_irq;
-        @(posedge clk)
-        $fell(rst) |=> irq == 0;
-    endproperty
-    assert property (p_reset_irq)
-        else $error("TIMER-P2 FAIL: IRQ not 0 after reset");
+    reg prev_rst;
+    always @(posedge clk) prev_rst <= rst;
+
+    always @(posedge clk) begin
+        if (prev_rst && !rst) begin
+            assert (irq == 0);  // TIMER-P2: IRQ 0 after reset
+        end
+    end
 
     // ================================================================
     // TIMER-P3: 重置後 timer_out 應為低
     // ================================================================
-    property p_reset_timer_out;
-        @(posedge clk)
-        $fell(rst) |=> timer_out == 2'b00;
-    endproperty
-    assert property (p_reset_timer_out)
-        else $error("TIMER-P3 FAIL: timer_out not 0 after reset");
+    always @(posedge clk) begin
+        if (prev_rst && !rst) begin
+            assert (timer_out == 2'b00);  // TIMER-P3: timer_out 0 after reset
+        end
+    end
 
     // ================================================================
-    // TIMER-P4: INT_STAT 寫入清除行為
-    // 讀取 INT_STAT (addr=0x08) 後寫入相同值應清除對應位元
+    // TIMER-P4: INT_STAT 追蹤
     // ================================================================
     reg [6:0] prev_int_stat;
     reg       int_stat_valid;
@@ -67,7 +61,6 @@ module timer_props (
             prev_int_stat <= 0;
             int_stat_valid <= 0;
         end else if (stb && cyc && !we && adr[6:2] == 5'h02 && ack) begin
-            // 讀取 INT_STAT
             prev_int_stat <= dat_o[6:0];
             int_stat_valid <= 1;
         end else begin
@@ -78,19 +71,18 @@ module timer_props (
     // ================================================================
     // TIMER-P5: 中斷觸發時 INT_STAT 不為零
     // ================================================================
-    property p_irq_implies_int_stat;
-        @(posedge clk) disable iff (rst)
-        // 當讀取 INT_STAT 且 irq 為高時
-        (stb && cyc && !we && adr[6:2] == 5'h02 && ack && irq) |->
-        (dat_o[6:0] != 7'h0);
-    endproperty
-    assert property (p_irq_implies_int_stat)
-        else $error("TIMER-P5 FAIL: IRQ high but INT_STAT is 0");
+    always @(posedge clk) begin
+        if (!rst && stb && cyc && !we && adr[6:2] == 5'h02 && ack && irq) begin
+            assert (dat_o[6:0] != 7'h0);  // TIMER-P5: IRQ → INT_STAT != 0
+        end
+    end
 
     // 覆蓋率
-    cover property (@(posedge clk) irq);
-    cover property (@(posedge clk) timer_out[0]);
-    cover property (@(posedge clk) timer_out[1]);
+    always @(posedge clk) begin
+        cover (irq);
+        cover (timer_out[0]);
+        cover (timer_out[1]);
+    end
 
 `endif
 

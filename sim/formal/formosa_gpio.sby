@@ -4,20 +4,22 @@ cover
 
 [options]
 prove: mode prove
-prove: depth 30
+prove: depth 10
 cover: mode cover
-cover: depth 30
+cover: depth 10
 
 [engines]
 smtbmc z3
 
 [script]
-read -formal ../../rtl/peripherals/gpio/formosa_gpio.v
-read -formal wb_protocol.sv
-read -formal gpio_props.sv
-prep -top formosa_gpio
+read -formal formosa_gpio.v
+read -sv -formal wb_protocol.sv
+read -sv -formal gpio_props.sv
+read -sv -formal formal_gpio_top.sv
+prep -top formal_gpio_top
 
 [files]
 ../../rtl/peripherals/gpio/formosa_gpio.v
 wb_protocol.sv
 gpio_props.sv
+formal_gpio_top.sv

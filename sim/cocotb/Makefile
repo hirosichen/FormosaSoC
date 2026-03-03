@@ -472,14 +472,79 @@ test_soc_periph:
 		EXTRA_ARGS="$(EXTRA_ARGS)"
 
 # ================================================================
-# 執行全部測試（單元 + 壓力 + 整合 + SoC）
+# 約束隨機測試 (Constrained-Random)
+# ================================================================
+.PHONY: test_random_gpio
+test_random_gpio:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(GPIO_DIR)/formosa_gpio.v \
+		TOPLEVEL=formosa_gpio \
+		MODULE=test_constrained_random \
+		TESTCASE="test_random_gpio_sequences,test_random_register_fuzz" \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+.PHONY: test_random_uart
+test_random_uart:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(UART_DIR)/formosa_uart.v \
+		TOPLEVEL=formosa_uart \
+		MODULE=test_constrained_random \
+		TESTCASE=test_random_uart_config \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+.PHONY: test_random_timer
+test_random_timer:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(TIMER_DIR)/formosa_timer.v \
+		TOPLEVEL=formosa_timer \
+		MODULE=test_constrained_random \
+		TESTCASE=test_random_timer_config \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+.PHONY: test_random_irq
+test_random_irq:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(IRQ_DIR)/formosa_irq_ctrl.v \
+		TOPLEVEL=formosa_irq_ctrl \
+		MODULE=test_constrained_random \
+		TESTCASE=test_random_irq_patterns \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+.PHONY: test_random_dma
+test_random_dma:
+	rm -rf sim_build __pycache__
+	$(MAKE) -f $(shell cocotb-config --makefiles)/Makefile.sim \
+		VERILOG_SOURCES=$(DMA_DIR)/formosa_dma.v \
+		TOPLEVEL=formosa_dma \
+		MODULE=test_constrained_random \
+		TESTCASE=test_random_dma_transfers \
+		SIM=$(SIM) \
+		EXTRA_ARGS="$(EXTRA_ARGS)"
+
+.PHONY: test_random_all
+test_random_all: test_random_gpio test_random_uart test_random_timer test_random_irq test_random_dma
+	@echo "============================================"
+	@echo " 所有約束隨機測試執行完畢 (6 項)"
+	@echo "============================================"
+
+# ================================================================
+# 執行全部測試（單元 + 壓力 + 整合 + SoC + 隨機）
 # ================================================================
 .PHONY: test_complete
-test_complete: test_all test_stress_all test_bus test_soc_core test_rv32i_isa test_core_modules test_soc_periph
+test_complete: test_all test_stress_all test_bus test_soc_core test_rv32i_isa test_core_modules test_soc_periph test_random_all
 	@echo "============================================"
 	@echo " 全部測試執行完畢"
 	@echo " 60 單元 + 60 壓力 + 6 整合 + 3 SoC"
-	@echo " + 12 ISA + 6 核心 + 6 周邊 = 153 項"
+	@echo " + 12 ISA + 6 核心 + 6 周邊 + 6 隨機"
+	@echo " = 159 項"
 	@echo "============================================"
 
 # ================================================================

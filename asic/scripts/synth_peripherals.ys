@@ -1,0 +1,35 @@
+# ===========================================================================
+# FormosaSoC - Yosys 周邊合成腳本
+# 目標：將所有 10 個周邊 RTL 逐一合成，產生面積/資源報告
+# ===========================================================================
+
+# 讀取所有周邊 RTL
+read_verilog ../../rtl/peripherals/uart/formosa_uart.v
+read_verilog ../../rtl/peripherals/gpio/formosa_gpio.v
+read_verilog ../../rtl/peripherals/spi/formosa_spi.v
+read_verilog ../../rtl/peripherals/i2c/formosa_i2c.v
+read_verilog ../../rtl/peripherals/pwm/formosa_pwm.v
+read_verilog ../../rtl/peripherals/timer/formosa_timer.v
+read_verilog ../../rtl/peripherals/wdt/formosa_wdt.v
+read_verilog ../../rtl/peripherals/irq/formosa_irq_ctrl.v
+read_verilog ../../rtl/peripherals/dma/formosa_dma.v
+read_verilog ../../rtl/peripherals/adc_if/formosa_adc_if.v
+
+# 通用合成流程 (不 flatten，保留模組層級)
+proc
+opt
+fsm
+opt
+memory
+opt
+techmap
+opt
+
+# 統計報告 (各模組獨立)
+stat
+
+# 產生通用閘級網表 (JSON 格式)
+write_json ../../asic/peripherals_synth_report.json
+
+# 產生 Verilog 閘級網表
+write_verilog ../../asic/formosa_peripherals_synth.v

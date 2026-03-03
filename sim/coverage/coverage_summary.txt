@@ -1,0 +1,79 @@
+============================================
+ FormosaSoC 程式碼覆蓋率分析報告
+ 日期: 2026-03-03 16:11:03
+ Verilator: Verilator 5.036 2025-04-27 rev v5.036
+============================================
+
+模組測試結果: 通過 10 / 10
+
+--- 各模組覆蓋率統計 ---
+
+=== adc ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      477,        1,      477,  "/home/agent/FormosaSoC/sim/coverage/data/adc_coverage.dat"
+
+=== dma ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      261,        1,      261,  "/home/agent/FormosaSoC/sim/coverage/data/dma_coverage.dat"
+
+=== gpio ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      632,        1,      632,  "/home/agent/FormosaSoC/sim/coverage/data/gpio_coverage.dat"
+
+=== i2c ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      294,        1,      294,  "/home/agent/FormosaSoC/sim/coverage/data/i2c_coverage.dat"
+
+=== irq ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      217,        1,      217,  "/home/agent/FormosaSoC/sim/coverage/data/irq_coverage.dat"
+
+=== pwm ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      480,        1,      480,  "/home/agent/FormosaSoC/sim/coverage/data/pwm_coverage.dat"
+
+=== spi ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      336,        1,      336,  "/home/agent/FormosaSoC/sim/coverage/data/spi_coverage.dat"
+
+=== timer ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      328,        1,      328,  "/home/agent/FormosaSoC/sim/coverage/data/timer_coverage.dat"
+
+=== uart ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      362,        1,      362,  "/home/agent/FormosaSoC/sim/coverage/data/uart_coverage.dat"
+
+=== wdt ===
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+      270,        1,      270,  "/home/agent/FormosaSoC/sim/coverage/data/wdt_coverage.dat"
+
+--- 合併覆蓋率統計 ---
+Tests:
+  Covered,     Rank,  RankPts,  Filename
+     3657,        1,     3657,  "/home/agent/FormosaSoC/sim/coverage/data/merged_coverage.dat"
+
+--- 標註報告檔案列表 ---
+total 228
+drwxr-xr-x 2 agent agent  4096 Mar  3 16:11 .
+drwxr-xr-x 4 agent agent  4096 Mar  3 16:11 ..
+-rw-r--r-- 1 agent agent 27940 Mar  3 16:11 formosa_adc_if.v
+-rw-r--r-- 1 agent agent 24412 Mar  3 16:11 formosa_dma.v
+-rw-r--r-- 1 agent agent 14509 Mar  3 16:11 formosa_gpio.v
+-rw-r--r-- 1 agent agent 24422 Mar  3 16:11 formosa_i2c.v
+-rw-r--r-- 1 agent agent 15280 Mar  3 16:11 formosa_irq_ctrl.v
+-rw-r--r-- 1 agent agent 20045 Mar  3 16:11 formosa_pwm.v
+-rw-r--r-- 1 agent agent 21175 Mar  3 16:11 formosa_spi.v
+-rw-r--r-- 1 agent agent 22349 Mar  3 16:11 formosa_timer.v
+-rw-r--r-- 1 agent agent 26963 Mar  3 16:11 formosa_uart.v
+-rw-r--r-- 1 agent agent 13823 Mar  3 16:11 formosa_wdt.v
